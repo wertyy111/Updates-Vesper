@@ -5,12 +5,12 @@
     <description>Most recent changes with links to updates</description>
     <language>en</language>
     <item>
-      <title>Vesper Launcher 1.0.39</title>
-      <sparkle:releaseNotesLink sparkle:signature="O9lfUw5EqGNLA/ZfTkyispITJfadLampQaBbSrNrSULrBa8nJg8+FYdzwEq6XGjlSzgmn3N7Oj8yjZOyeB9IBA==">https://wertyy111.github.io/Apdeites-Vesper/changelog/1.0.39.md</sparkle:releaseNotesLink>
-      <pubDate>Mon, 20 Apr 2026 21:43:36 +03:00</pubDate>
-      <sparkle:version>1.0.39</sparkle:version>
-      <sparkle:shortVersionString>1.0.39</sparkle:shortVersionString>
-      <enclosure url="https://github.com/wertyy111/Apdeites-Vesper/releases/download/v1.0.39/VesperLauncherSetup-1.0.39.exe" sparkle:version="1.0.39" sparkle:shortVersionString="1.0.39" length="254574547" sparkle:os="windows" type="application/x-msdos-program" sparkle:criticalUpdate="false" sparkle:signature="SbhMq8YnpwwJvFgn7qlUY26EMdrFlKShSJN23hlxFDCKHtKs41B+HU5ZfBnAlWWgHvY4zdJlEt2HZSpKItWnBg==" />
+      <title>Vesper Launcher 1.0.40</title>
+      <sparkle:releaseNotesLink sparkle:signature="aWViDKCkPTyKs/4PZzH8XlBzKQJAUUK7pJ6l2mzli9OYCcODj5F1gyhBoYlek+4FjfwWh4z8yO0raofMBfdGBA==">https://wertyy111.github.io/Apdeites-Vesper/changelog/1.0.40.md</sparkle:releaseNotesLink>
+      <pubDate>Tue, 21 Apr 2026 11:57:11 +03:00</pubDate>
+      <sparkle:version>1.0.40</sparkle:version>
+      <sparkle:shortVersionString>1.0.40</sparkle:shortVersionString>
+      <enclosure url="https://github.com/wertyy111/Apdeites-Vesper/releases/download/v1.0.40/VesperLauncherSetup-1.0.40.exe" sparkle:version="1.0.40" sparkle:shortVersionString="1.0.40" length="254574547" sparkle:os="windows" type="application/x-msdos-program" sparkle:criticalUpdate="false" sparkle:signature="IZZO/LyXi7OaN63ITCpxl2MKPZS1+p3mBAnFWKo6wKe1DFmlj8Y1EgLK4aSv9o1p8Yg2jHX3PclajFZu2tP6CQ==" />
     </item>
   </channel>
 </rss>
