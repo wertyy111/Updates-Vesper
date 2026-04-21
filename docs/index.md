@@ -3,6 +3,6 @@
 This repository hosts public launcher update files only.
 No source code is published here.
 
-Latest version: 1.0.40
+Latest version: 1.0.41
 App cast: https://wertyy111.github.io/Apdeites-Vesper/appcast.xml
-Installer: https://github.com/wertyy111/Apdeites-Vesper/releases/download/v1.0.40/VesperLauncherSetup-1.0.40.exe
+Installer: https://github.com/wertyy111/Apdeites-Vesper/releases/download/v1.0.41/VesperLauncherSetup-1.0.41.exe
