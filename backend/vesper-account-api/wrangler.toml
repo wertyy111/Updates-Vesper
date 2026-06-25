@@ -1,0 +1,35 @@
+﻿name = "vesper-account-api-3516"
+account_id = "defdbbc734c3da2b53c6f6f163197115"
+main = "src/index.js"
+compatibility_date = "2026-03-29"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[vars]
+ACCOUNT_STORE_MODE = "d1"
+AVATAR_STORAGE_MODE = "d1"
+PUBLIC_API_BASE_URL = "https://vesper-account-api-3516.vesperlauncher3516.workers.dev"
+GITHUB_STORAGE_OWNER = "wertyy111"
+GITHUB_STORAGE_REPO = "vesper-private-nicknames"
+GITHUB_STORAGE_BRANCH = "main"
+GITHUB_STORAGE_COMMITTER_NAME = "Vesper Launcher"
+GITHUB_STORAGE_COMMITTER_EMAIL = "vesper-launcher@users.noreply.github.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "vesper-account-db"
+database_id = "00a008ad-162b-4f2a-9d03-063571098ab6"
+migrations_dir = "migrations"
+
+[[durable_objects.bindings]]
+name = "RELAY_CONNECTIONS"
+class_name = "RelayConnectionDurableObject"
+
+[[migrations]]
+tag = "relay-v1"
+new_sqlite_classes = ["RelayConnectionDurableObject"]
+
+
+
+
+

@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vesper Launcher - спокойный Minecraft-лаунчер на русском</title>
+    <meta
+      name="description"
+      content="Vesper Launcher — спокойный Minecraft-лаунчер на русском языке: быстрый старт, профили, моды, понятная витрина релизов и единый игровой хаб."
+    />
+    <meta
+      name="keywords"
+      content="Vesper Launcher, Minecraft launcher, лаунчер Minecraft, русский лаунчер, моды Minecraft, скачать лаунчер"
+    />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <meta name="theme-color" content="#020202" />
+    <link rel="canonical" href="https://vesperlauncher.vercel.app/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:site_name" content="Vesper Launcher" />
+    <meta property="og:title" content="Vesper Launcher - спокойный Minecraft-лаунчер на русском" />
+    <meta
+      property="og:description"
+      content="Запускай Minecraft через спокойный игровой хаб: профили, моды, витрина обновлений и ясный русский интерфейс."
+    />
+    <meta property="og:url" content="https://vesperlauncher.vercel.app/" />
+    <meta property="og:image" content="https://vesperlauncher.vercel.app/assets/photo_2026-04-09_22-05-49.jpg" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Vesper Launcher" />
+    <meta
+      name="twitter:description"
+      content="Русский Minecraft-лаунчер с собранным визуалом, быстрыми профилями и честной витриной релизов."
+    />
+    <meta name="twitter:image" content="https://vesperlauncher.vercel.app/assets/photo_2026-04-09_22-05-49.jpg" />
+
+    <link rel="icon" href="assets/4aeba53a-2bfe-48f8-9a2b-7c4add156efc-Photoroom.png" />
+    <link rel="apple-touch-icon" href="assets/4aeba53a-2bfe-48f8-9a2b-7c4add156efc-Photoroom.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..900,0..100,0..1&family=Bitter:wght@600;700;800&display=swap"
+    />
+    <link rel="stylesheet" href="styles.css?v=20" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Vesper Launcher",
+        "applicationCategory": "GameApplication",
+        "applicationSubCategory": "Minecraft Launcher",
+        "operatingSystem": "Windows, macOS, Linux",
+        "url": "https://vesperlauncher.vercel.app/",
+        "downloadUrl": [
+          "https://github.com/wertyy111/Updates-Vesper/releases/download/v1.0.59-beta.1/VesperLauncherSetup.exe",
+          "https://github.com/wertyy111/Updates-Vesper/releases/download/v1.0.59-beta.1/Vesper.Launcher-linux-x64.AppImage",
+          "https://github.com/wertyy111/Updates-Vesper/releases/download/v1.0.59-beta.1/Vesper.Launcher-osx-arm64-Setup.pkg",
+          "https://github.com/wertyy111/Updates-Vesper/releases/download/v1.0.59-beta.1/Vesper.Launcher-osx-x64-Setup.pkg"
+        ],
+        "inLanguage": "ru",
+        "image": "https://vesperlauncher.vercel.app/assets/photo_2026-04-09_22-05-49.jpg",
+        "description": "Vesper Launcher — спокойный Minecraft-лаунчер на русском языке с быстрым стартом, профилями и поддержкой модов.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="overrides-v8.css?v=71" />
+  </head>
+  <body>
+    <div class="site-bg" aria-hidden="true">
+      <canvas class="site-mesh" data-mesh></canvas>
+      <span class="site-grid"></span>
+      <span class="site-beam"></span>
+      <span class="site-glow site-glow-a"></span>
+      <span class="site-glow site-glow-b"></span>
+      <span class="site-vignette"></span>
+    </div>
+
+    <main class="site-shell">
+      <header class="topbar">
+        <a class="brand" href="#home" data-window-target="home" aria-label="Vesper Launcher">
+          <img
+            src="assets/4aeba53a-2bfe-48f8-9a2b-7c4add156efc-Photoroom.png?v=1"
+            alt="Логотип Vesper Launcher"
+            draggable="false"
+          />
+          <span class="brand-copy">
+            <strong>Vesper Launcher</strong>
+            <small>Quiet launch for Minecraft</small>
+          </span>
+        </a>
+
+        <button class="menu-toggle" type="button" aria-label="Открыть меню" aria-expanded="false">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+
+        <nav class="nav-pill" aria-label="Основная навигация">
+          <a class="is-active" href="#home" data-window-target="home" aria-current="page">Главная</a>
+          <a href="#features" data-window-target="features">Возможности</a>
+          <a href="#download" data-window-target="download">Скачать</a>
+          <a href="#faq" data-window-target="faq">FAQ</a>
+          <a href="#community" data-window-target="community">Сообщество</a>
+        </nav>
+
+        <div class="header-actions">
+          <a class="ghost-link" href="#login" data-window-target="login">Вход</a>
+          <a class="header-cta" href="#download" data-window-target="download">Скачать</a>
+        </div>
+      </header>
+
+      <section class="window-stack" aria-live="polite">
+        <article class="window-panel panel-home is-active" id="home" data-window="home">
+          <div class="window-copy">
+            <span class="eyebrow" data-rise style="--delay: 0.04s;">{ quiet launch }</span>
+            <h1 data-rise style="--delay: 0.12s;">
+              Vesper Launcher
+              <span>спокойный запуск</span>
+              <span>Minecraft</span>
+            </h1>
+            <p data-rise style="--delay: 0.2s;">
+              Быстрый старт, профили и моды в спокойном русском интерфейсе. Один сильный экран, ясная навигация и акцент
+              на запуске, а не на декоративном шуме.
+            </p>
+
+            <div class="hero-buttons" data-rise style="--delay: 0.28s;">
+              <a class="primary-btn" href="#download" data-window-target="download">Посмотреть сборки</a>
+              <a class="secondary-btn" href="#features" data-window-target="features">Разобрать возможности</a>
+            </div>
+
+            <ul class="hero-stats">
+              <li data-rise style="--delay: 0.36s;">
+                <strong>Быстрый старт</strong>
+                <span>Последний профиль под рукой</span>
+              </li>
+              <li data-rise style="--delay: 0.44s;">
+                <strong>Профили и моды</strong>
+                <span>Forge, Fabric и vanilla рядом</span>
+              </li>
+              <li data-rise style="--delay: 0.52s;">
+                <strong>RU-first</strong>
+                <span>Понятный интерфейс без путаницы</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="window-visual" aria-hidden="true">
+            <div class="launcher-stage">
+              <span class="stage-orbit orbit-outer" data-rise style="--delay: 0.14s;"></span>
+              <span class="stage-orbit orbit-inner" data-rise style="--delay: 0.22s;"></span>
+
+              <article class="orbital-chip chip-top" data-rise style="--delay: 0.26s;">
+                <span class="mini-label">preview</span>
+                <strong>build stream 0.9</strong>
+              </article>
+
+              <article class="orbital-chip chip-right" data-rise style="--delay: 0.32s;">
+                <span class="mini-label">profiles</span>
+                <strong>forge / fabric / vanilla</strong>
+              </article>
+
+              <article class="orbital-chip chip-bottom" data-rise style="--delay: 0.38s;">
+                <span class="mini-label">sync</span>
+                <strong>mods, saves, release notes</strong>
+              </article>
+
+              <div class="launcher-card main-card" data-rise style="--delay: 0.2s;">
+                <span class="card-label">launcher preview</span>
+                <img
+                  class="hero-logo"
+                  src="assets/4aeba53a-2bfe-48f8-9a2b-7c4add156efc-Photoroom.png?v=1"
+                  alt=""
+                  draggable="false"
+                />
+                <div class="status-line">
+                  <span class="status-dot"></span>
+                  Профиль Vesper Core готов к запуску
+                </div>
+              </div>
+
+              <article class="mini-card mini-card-left" data-rise style="--delay: 0.28s;">
+                <span class="mini-label">last launch</span>
+                <strong>Vesper Core</strong>
+                <p>1.20.1 / Fabric / 42 mods</p>
+              </article>
+
+              <article class="mini-card mini-card-right" data-rise style="--delay: 0.34s;">
+                <span class="mini-label">release radar</span>
+                <strong>stable branch</strong>
+                <p>sync complete, changelog ready</p>
+              </article>
+
+              <p class="stage-note" data-rise style="--delay: 0.32s;">
+                Главный визуальный акцент работает как обложка продукта, а не как шумная декорация.
+              </p>
+            </div>
+          </div>
+        </article>
+
+        <article class="window-panel panel-features" id="features" data-window="features" hidden>
+          <div class="window-copy">
+            <span class="eyebrow" data-rise style="--delay: 0.04s;">{ what it does }</span>
+            <h2 data-rise style="--delay: 0.12s;">Основа, которой достаточно</h2>
+            <p data-rise style="--delay: 0.2s;">
+              Профили, версии и моды собраны без лишних уровней интерфейса. Всё остальное можно добавлять позже, не теряя
+              спокойный ритм страницы.
+            </p>
+
+            <ul class="panel-points">
+              <li data-rise style="--delay: 0.28s;">Профили запуска под разные версии Minecraft и разные сборки.</li>
+              <li data-rise style="--delay: 0.36s;">Плавная система карточек вместо плоских пустых заглушек.</li>
+              <li data-rise style="--delay: 0.44s;">Чёткая структура под FAQ, сообщество, кабинет и витрину релизов.</li>
+            </ul>
+          </div>
+
+          <div class="window-visual">
+            <div class="feature-grid">
+              <article class="feature-card" data-rise style="--delay: 0.18s;">
+                <span class="feature-number">01</span>
+                <h3>Профили без хаоса</h3>
+                <p>Отдельные сборки и последние сессии собраны в одном спокойном списке.</p>
+              </article>
+
+              <article class="feature-card" data-rise style="--delay: 0.26s;">
+                <span class="feature-number">02</span>
+                <h3>Сборки и моды</h3>
+                <p>Поддержка Forge, Fabric и vanilla без перегруженной витрины.</p>
+              </article>
+
+              <article class="feature-card" data-rise style="--delay: 0.34s;">
+                <span class="feature-number">03</span>
+                <h3>Спокойный интерфейс</h3>
+                <p>Контраст, воздух и короткие статусы вместо лишнего декоративного шума.</p>
+              </article>
+            </div>
+          </div>
+        </article>
+
+        <article class="window-panel panel-download" id="download" data-window="download" hidden>
+          <div class="window-copy">
+            <span class="eyebrow" data-rise style="--delay: 0.04s;">{ release flow }</span>
+            <h2 data-rise style="--delay: 0.12s;">Скачать Vesper Launcher</h2>
+            <p data-rise style="--delay: 0.2s;">
+              Скачай актуальную 1.0.59 beta сборку под свою систему. Windows идёт через установщик, Linux и macOS
+              теперь доступны как полноценные AppImage и PKG установщики.
+            </p>
+
+            <div class="panel-actions" data-rise style="--delay: 0.28s;">
+              <a class="primary-btn" href="https://github.com/wertyy111/Updates-Vesper/releases/download/v1.0.59-beta.1/VesperLauncherSetup.exe">Windows Setup</a>
+              <a class="secondary-btn" href="https://github.com/wertyy111/Updates-Vesper/releases/download/v1.0.59-beta.1/Vesper.Launcher-linux-x64.AppImage">Linux x64</a>
+              <a class="secondary-btn" href="https://github.com/wertyy111/Updates-Vesper/releases/download/v1.0.59-beta.1/Vesper.Launcher-osx-arm64-Setup.pkg">macOS Apple Silicon</a>
+              <a class="secondary-btn" href="https://github.com/wertyy111/Updates-Vesper/releases/tag/v1.0.59-beta.1">Файлы релиза</a>
+            </div>
+          </div>
+
+          <div class="window-visual">
+            <div class="download-board">
+              <span class="note-kicker" data-rise style="--delay: 0.16s;">platform builds</span>
+
+              <div class="download-platforms">
+                <a
+                  class="download-platform is-live"
+                  href="https://github.com/wertyy111/Updates-Vesper/releases/download/v1.0.59-beta.1/VesperLauncherSetup.exe"
+                  data-rise
+                  style="--delay: 0.22s;"
+                >
+                  <span class="download-platform-copy">
+                    <strong>Windows</strong>
+                    <span>VesperLauncherSetup.exe</span>
+                  </span>
+                  <span class="download-platform-state">Скачать</span>
+                </a>
+
+                <a
+                  class="download-platform is-live"
+                  href="https://github.com/wertyy111/Updates-Vesper/releases/download/v1.0.59-beta.1/Vesper.Launcher-linux-x64.AppImage"
+                  data-rise
+                  style="--delay: 0.3s;"
+                >
+                  <span class="download-platform-copy">
+                    <strong>Linux</strong>
+                    <span>Vesper.Launcher-linux-x64.AppImage</span>
+                  </span>
+                  <span class="download-platform-state">Скачать</span>
+                </a>
+
+                <a
+                  class="download-platform is-live"
+                  href="https://github.com/wertyy111/Updates-Vesper/releases/download/v1.0.59-beta.1/Vesper.Launcher-osx-arm64-Setup.pkg"
+                  data-rise
+                  style="--delay: 0.38s;"
+                >
+                  <span class="download-platform-copy">
+                    <strong>macOS Apple Silicon</strong>
+                    <span>Vesper.Launcher-osx-arm64-Setup.pkg</span>
+                  </span>
+                  <span class="download-platform-state">Скачать</span>
+                </a>
+
+                <a
+                  class="download-platform is-live"
+                  href="https://github.com/wertyy111/Updates-Vesper/releases/download/v1.0.59-beta.1/Vesper.Launcher-osx-x64-Setup.pkg"
+                  data-rise
+                  style="--delay: 0.46s;"
+                >
+                  <span class="download-platform-copy">
+                    <strong>macOS Intel</strong>
+                    <span>Vesper.Launcher-osx-x64-Setup.pkg</span>
+                  </span>
+                  <span class="download-platform-state">Скачать</span>
+                </a>
+              </div>
+
+            </div>
+          </div>
+        </article>
+
+        <article class="window-panel panel-faq" id="faq" data-window="faq" hidden>
+          <div class="window-copy">
+            <span class="eyebrow" data-rise style="--delay: 0.04s;">{ faq }</span>
+            <h2 data-rise style="--delay: 0.12s;">Ответы перед запуском</h2>
+            <p data-rise style="--delay: 0.2s;">
+              Без декоративных блоков: только ответы на главные вопросы перед запуском.
+            </p>
+          </div>
+
+          <div class="window-visual">
+            <div class="faq-list">
+              <details class="faq-item" open data-rise style="--delay: 0.18s;">
+                <summary>Какие версии Minecraft планируются в первую очередь?</summary>
+                <p>Сначала логично вывести vanilla, а затем дать отдельные профили под Forge и Fabric, чтобы пользователь не путал сборки.</p>
+              </details>
+
+              <details class="faq-item" data-rise style="--delay: 0.26s;">
+                <summary>Будут ли отдельные профили под модпаки?</summary>
+                <p>Да. В текущей структуре интерфейса уже есть место для хранения разных пресетов, зависимостей и статусов загрузки.</p>
+              </details>
+
+              <details class="faq-item" data-rise style="--delay: 0.34s;">
+                <summary>Что с безопасностью и понятностью для новичков?</summary>
+                <p>Русский интерфейс, честные статусы, внятные предупреждения и отсутствие ложных CTA делают вход заметно спокойнее.</p>
+              </details>
+
+              <details class="faq-item" data-rise style="--delay: 0.42s;">
+                <summary>Можно ли будет читать changelog прямо в лаунчере?</summary>
+                <p>Да, под это уже заложен визуальный паттерн карточек: новости, патчи, срочные анонсы и релизные заметки.</p>
+              </details>
+
+              <details class="faq-item" data-rise style="--delay: 0.5s;">
+                <summary>Зачем нужен отдельный экран сообщества?</summary>
+                <p>Чтобы пользователь видел, где получать апдейты, обратную связь и тестовые сборки, а не искал их по случайным сообщениям.</p>
+              </details>
+            </div>
+          </div>
+        </article>
+
+        <article class="window-panel panel-community" id="community" data-window="community" hidden>
+          <div class="window-copy">
+            <span class="eyebrow" data-rise style="--delay: 0.04s;">{ community }</span>
+            <h2 data-rise style="--delay: 0.12s;">Сообщество Vesper</h2>
+            <p data-rise style="--delay: 0.2s;">
+              Все основные ссылки в одном месте: Telegram для новостей и Discord для общения и поддержки.
+            </p>
+          </div>
+
+          <div class="window-visual">
+            <div class="community-actions">
+              <a class="community-link-card is-telegram" href="https://t.me/VesperLauncher" data-rise style="--delay: 0.28s;">
+                <span class="community-card-head">
+                  <span class="community-tag">telegram</span>
+                </span>
+                <strong>Vesper Launcher в Telegram</strong>
+                <span>t.me/VesperLauncher</span>
+                <span class="community-link-mark" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path
+                      d="M19.2 5.1 4.8 10.7c-.9.4-.9 1.6.1 1.8l3.7 1.2 1.5 4.8c.3.9 1.4 1.1 2 .4l2.1-2.3 3.8 2.8c.8.6 1.9.2 2.1-.8l2.2-12.1c.2-1-.8-1.8-1.7-1.4Zm-8.3 9.2-.4 3.1-.9-3 7.4-6.6-6.1 6.5Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </span>
+              </a>
+
+              <a class="community-link-card is-discord" href="https://discord.gg/JEwpp2aTc" data-rise style="--delay: 0.36s;">
+                <span class="community-card-head">
+                  <span class="community-tag">discord</span>
+                </span>
+                <strong>Discord-сервер Vesper</strong>
+                <span>discord.gg/JEwpp2aTc</span>
+                <span class="community-link-mark" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path
+                      d="M18.6 6.8a13.7 13.7 0 0 0-3.4-1l-.6 1.1a11.5 11.5 0 0 0-5.2 0l-.6-1.1a13.7 13.7 0 0 0-3.4 1C3.2 10 2.5 13 3 15.9a13.9 13.9 0 0 0 4.2 2.1l1-1.7-.9-.6.2-.1a10.4 10.4 0 0 0 9 0l.2.1-.9.6 1 1.7a13.9 13.9 0 0 0 4.2-2.1c.6-3.3-.5-6.2-2.4-9.1ZM9.4 13.9c-.8 0-1.5-.8-1.5-1.7 0-1 .7-1.7 1.5-1.7.9 0 1.5.8 1.5 1.7s-.6 1.7-1.5 1.7Zm5.2 0c-.8 0-1.5-.8-1.5-1.7 0-1 .7-1.7 1.5-1.7.9 0 1.5.8 1.5 1.7s-.6 1.7-1.5 1.7Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </span>
+              </a>
+
+              <a class="community-link-card is-tiktok" href="https://www.tiktok.com/@vesperlauncher" data-rise style="--delay: 0.44s;">
+                <span class="community-card-head">
+                  <span class="community-tag">tiktok</span>
+                </span>
+                <strong>Vesper Launcher в TikTok</strong>
+                <span>tiktok.com/@vesperlauncher</span>
+                <span class="community-link-mark" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path
+                      d="M14.8 3v2.1c0 .7.2 1.4.6 2 .7 1 1.8 1.6 3 1.7V11a6.4 6.4 0 0 1-3.6-1.1v5.1a5 5 0 1 1-5-5c.4 0 .8 0 1.2.1v2.3a2.7 2.7 0 1 0 1.4 2.4V3h2.4Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </span>
+              </a>
+            </div>
+          </div>
+        </article>
+
+        <article class="window-panel panel-login" id="login" data-window="login" hidden>
+          <div class="auth-shell" data-rise style="--delay: 0.08s;">
+            <div class="auth-card">
+              <span class="eyebrow auth-eyebrow">{ account }</span>
+              <h2>Вход в Vesper</h2>
+              <p>Один экран для входа и создания аккаунта.</p>
+
+              <div class="auth-switch" aria-label="Режим авторизации">
+                <button class="auth-switch-btn is-active" type="button">Вход</button>
+                <button class="auth-switch-btn" type="button">Регистрация</button>
+              </div>
+
+              <form class="auth-form">
+                <label class="auth-field">
+                  <span>Email</span>
+                  <input type="email" placeholder="you@example.com" />
+                </label>
+
+                <label class="auth-field">
+                  <span>Пароль</span>
+                  <input type="password" placeholder="Введите пароль" />
+                </label>
+
+                <div class="auth-row">
+                  <label class="auth-check">
+                    <input type="checkbox" />
+                    <span>Запомнить меня</span>
+                  </label>
+                  <a class="auth-link" href="#faq" data-window-target="faq">Забыли пароль?</a>
+                </div>
+
+                <button class="auth-submit" type="button">Войти</button>
+              </form>
+
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script src="script.js?v=13"></script>
+    <script src="patch-v8.js?v=12"></script>
+  </body>
+</html>
+

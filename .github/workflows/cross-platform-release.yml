@@ -1,0 +1,267 @@
+name: Cross-platform release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "GitHub release tag to upload assets into"
+        required: true
+        default: "beta-1.0"
+      version:
+        description: "Artifact version label"
+        required: true
+        default: "beta-1.0"
+      upload_release:
+        description: "Upload AppImage/DMG assets to the GitHub Release"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+  push:
+    tags:
+      - "beta-*"
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  VESPER_VERSION: ${{ github.event.inputs.version || github.ref_name }}
+
+jobs:
+  linux-appimage:
+    name: Linux AppImage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: "VesperLauncher/UserInterface/package-lock.json"
+
+      - name: Install AppImage build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 desktop-file-utils
+
+      - name: Publish Linux shell
+        shell: pwsh
+        run: |
+          ./scripts/Publish-CrossPlatformShell.ps1 `
+            -Configuration Release `
+            -SelfContained `
+            -BuildFrontend `
+            -RuntimeIdentifiers linux-x64
+
+      - name: Build Velopack Linux
+        shell: bash
+        run: |
+          dotnet tool restore
+          dotnet tool run vpk -- download github --repoUrl https://github.com/wertyy111/Updates-Vesper --channel linux-x64 || true
+          dotnet tool run vpk -- pack -v "${VESPER_VERSION}" -p "./_build_verify/cross-platform-publish/linux-x64" -c linux-x64 -e VesperLauncher --packId Vesper.Launcher -i "VesperLauncher/Assets/vesper-logo.png" -o "./_build_verify/release-artifacts"
+
+      - name: Build .deb package
+        shell: bash
+        run: |
+          VERSION="${VESPER_VERSION//-/\~}"
+          DEB_DIR="_build_verify/deb/vesper-launcher_${VERSION}_amd64"
+          mkdir -p "${DEB_DIR}/opt/vesper-launcher"
+          mkdir -p "${DEB_DIR}/DEBIAN"
+          mkdir -p "${DEB_DIR}/usr/share/applications"
+          mkdir -p "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps"
+          
+          cp -r _build_verify/cross-platform-publish/linux-x64/* "${DEB_DIR}/opt/vesper-launcher/"
+          
+          cat <<EOF > "${DEB_DIR}/DEBIAN/control"
+          Package: vesper-launcher
+          Version: ${VERSION}
+          Architecture: amd64
+          Maintainer: Vesper Launcher <support@vesper-app.site>
+          Description: Vesper Launcher cross-platform Photino shell
+          EOF
+          
+          cat <<EOF > "${DEB_DIR}/usr/share/applications/vesper-launcher.desktop"
+          [Desktop Entry]
+          Name=Vesper Launcher
+          Exec=/opt/vesper-launcher/VesperLauncher
+          Icon=vesper-launcher
+          Type=Application
+          Categories=Game;
+          Terminal=false
+          EOF
+          
+          # The project directory is MinecraftCheatLauncher currently, wait... no, the directory name is MinecraftCheatLauncher! But in the file it says VesperLauncher?
+          # Wait, look at line 75: -i "VesperLauncher/Assets/vesper-logo.png". I'll use the same path!
+          cp "MinecraftCheatLauncher/Assets/vesper-logo.png" "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps/vesper-launcher.png" || cp "VesperLauncher/Assets/vesper-logo.png" "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps/vesper-launcher.png"
+          
+          chmod -R 755 "${DEB_DIR}/DEBIAN"
+          chmod -R 755 "${DEB_DIR}/opt/vesper-launcher"
+          chmod 755 "${DEB_DIR}/opt/vesper-launcher/VesperLauncher"
+          chmod 644 "${DEB_DIR}/usr/share/applications/vesper-launcher.desktop"
+          
+          dpkg-deb --build "${DEB_DIR}" _build_verify/release-artifacts/vesper-launcher_${VERSION}_amd64.deb
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vesper-linux-appimage
+          path: |
+            _build_verify/release-artifacts/*.AppImage
+            _build_verify/release-artifacts/*.deb
+            _build_verify/release-artifacts/*.nupkg
+            _build_verify/release-artifacts/releases.*.json
+          if-no-files-found: error
+
+  macos-dmg:
+    name: macOS DMG (${{ matrix.rid }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid:
+          - osx-x64
+          - osx-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: "VesperLauncher/UserInterface/package-lock.json"
+
+      - name: Import Apple Developer ID certificate
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        shell: bash
+        run: |
+          if [[ -z "${MACOS_CERTIFICATE_P12_BASE64}" || -z "${MACOS_CERTIFICATE_PASSWORD}" || -z "${MACOS_CODESIGN_IDENTITY}" ]]; then
+            echo "Apple signing secrets are not configured; building unsigned DMG."
+            exit 0
+          fi
+
+          keychain_password="${MACOS_KEYCHAIN_PASSWORD:-vesper-build-keychain}"
+          certificate_path="$RUNNER_TEMP/developer-id.p12"
+          keychain_path="$RUNNER_TEMP/vesper-signing.keychain-db"
+
+          echo "$MACOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$certificate_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain_path"
+          security list-keychain -d user -s "$keychain_path" "$HOME/Library/Keychains/login.keychain-db"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain_path"
+
+      - name: Prepare App Store Connect API key
+        env:
+          MACOS_NOTARY_KEY_BASE64: ${{ secrets.MACOS_NOTARY_KEY_BASE64 }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+        shell: bash
+        run: |
+          if [[ -z "${MACOS_NOTARY_KEY_BASE64}" || -z "${MACOS_NOTARY_KEY_ID}" || -z "${MACOS_NOTARY_ISSUER_ID}" ]]; then
+            echo "Apple notarization secrets are not configured; skipping notarization."
+            exit 0
+          fi
+
+          mkdir -p "$RUNNER_TEMP/notary"
+          key_path="$RUNNER_TEMP/notary/AuthKey_${MACOS_NOTARY_KEY_ID}.p8"
+          echo "$MACOS_NOTARY_KEY_BASE64" | base64 --decode > "$key_path"
+          {
+            echo "MACOS_NOTARY_KEY_PATH=$key_path"
+            echo "MACOS_NOTARY_KEY_ID=$MACOS_NOTARY_KEY_ID"
+            echo "MACOS_NOTARY_ISSUER_ID=$MACOS_NOTARY_ISSUER_ID"
+          } >> "$GITHUB_ENV"
+
+      - name: Publish macOS shell
+        shell: pwsh
+        run: |
+          ./scripts/Publish-CrossPlatformShell.ps1 `
+            -Configuration Release `
+            -SelfContained `
+            -BuildFrontend `
+            -RuntimeIdentifiers ${{ matrix.rid }}
+
+      - name: Generate macOS ICNS icon
+        shell: bash
+        run: npx png2icons VesperLauncher/Assets/vesper-logo.png VesperLauncher/Assets/vesper-app -icns
+
+      - name: Build Velopack macOS
+        env:
+          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+        shell: bash
+        run: |
+          dotnet tool restore
+          dotnet tool run vpk -- download github --repoUrl https://github.com/wertyy111/Updates-Vesper --channel ${{ matrix.rid }} || true
+          dotnet tool run vpk -- pack -v "${VESPER_VERSION}" -p "./_build_verify/cross-platform-publish/${{ matrix.rid }}" -c ${{ matrix.rid }} -e VesperLauncher --packId Vesper.Launcher -i "VesperLauncher/Assets/vesper-app.icns" -o "./_build_verify/release-artifacts"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vesper-${{ matrix.rid }}-dmg
+          path: |
+            _build_verify/release-artifacts/*.pkg
+            _build_verify/release-artifacts/*.zip
+            _build_verify/release-artifacts/*.nupkg
+            _build_verify/release-artifacts/releases.*.json
+          if-no-files-found: error
+
+  upload-release:
+    name: Upload release assets
+    needs:
+      - linux-appimage
+      - macos-dmg
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' || github.event.inputs.upload_release == 'true' }}
+
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Upload assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: wertyy111/Updates-Vesper
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: |
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.pkg
+            dist/*.zip
+            dist/*.nupkg
+            dist/releases.*.json
+          fail_on_unmatched_files: true
+          token: ${{ secrets.VPK_TOKEN }}
+
+
+
+

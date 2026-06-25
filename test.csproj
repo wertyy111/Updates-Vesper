@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <FrontendRoot>$(MSBuildProjectDirectory)\UserInterface</FrontendRoot>
+  </PropertyGroup>
+  <Target Name="TestTarget" AfterTargets="Build">
+    <Message Text="FrontendRoot is: $(FrontendRoot)" Importance="High" />
+  </Target>
+</Project>

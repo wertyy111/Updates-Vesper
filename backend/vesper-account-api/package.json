@@ -1,0 +1,17 @@
+{
+  "name": "vesper-account-api",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker API for launcher accounts with D1 storage.",
+  "main": "src/index.js",
+  "scripts": {
+    "deploy": "wrangler deploy --config wrangler.toml",
+    "dev": "wrangler dev --remote --config wrangler.toml",
+    "d1:init": "wrangler d1 execute vesper-account-db --remote --file migrations/0001_init.sql --config wrangler.toml",
+    "test": "node scripts/test-cloudflare.mjs",
+    "check:github-storage": "node scripts/check-github-asset-storage.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module"
+}

@@ -1,0 +1,51 @@
+# Build outputs
+bin/
+obj/
+**/bin/
+**/obj/
+
+# Local IDE/runtime state
+.vs/
+.config/
+%LOCALAPPDATA%/
+logs/
+*.log
+
+# Local package/tool caches kept outside source control
+.dotnet/
+.dotnet_cli/
+.dotnet_home/
+.nuget/
+.tools/
+
+# Launcher verification and staging artifacts
+_temp_build/
+_build_verify/
+_tmp_probe/
+_tmp_catalog_probe/
+_latest_fixed_launcher/
+MinecraftCheatLauncher/_temp_build/
+
+# Installer staging artifacts
+_windows_build/payload*.zip
+_windows_build/**/bin/
+_windows_build/**/obj/
+windows/setup.exe
+windows/payload*.zip
+
+# Backend local state
+backend/vesper-account-api/.runtime/
+backend/vesper-account-api/.wrangler/
+backend/vesper-account-api/node_modules/
+backend/vesper-account-api/.env
+
+# Generated launcher runtime data
+MinecraftCheatLauncher/**/GameData/
+MinecraftCheatLauncher/**/.launcher-data/
+MinecraftCheatLauncher/**/.launcher-temp/
+MinecraftCheatLauncher/**/*.WebView2/
+MinecraftCheatLauncher/UserInterface/node_modules/
+MinecraftCheatLauncher/UserInterface/dist/
+MinecraftCheatLauncher/UserInterface/*.tsbuildinfo
+MinecraftCheatLauncher/UserInterface/vite.config.js
+MinecraftCheatLauncher/UserInterface/vite.config.d.ts
