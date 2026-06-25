@@ -1,0 +1,9 @@
+{
+    "RegisterUrl": "https://vesper-account-api-3516.vesperlauncher3516.workers.dev/api/v1/auth/register",
+    "LoginUrl": "https://vesper-account-api-3516.vesperlauncher3516.workers.dev/api/v1/auth/login",
+    "CredentialInfoUrl": "https://vesper-account-api-3516.vesperlauncher3516.workers.dev/api/v1/auth/credential-info",
+    "MeUrl": "https://vesper-account-api-3516.vesperlauncher3516.workers.dev/api/v1/auth/me",
+    "LogoutUrl": "https://vesper-account-api-3516.vesperlauncher3516.workers.dev/api/v1/auth/logout",
+    "AuthorizationHeaderName": "",
+    "AuthorizationHeaderValue": ""
+}

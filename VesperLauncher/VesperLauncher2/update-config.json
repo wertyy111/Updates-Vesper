@@ -1,0 +1,12 @@
+{
+  "Enabled": true,
+  "CheckOnStartup": true,
+  "InstallOnStartup": true,
+  "SourceType": "GitHub",
+  "SourceUrl": "https://github.com/wertyy111/Updates-Vesper",
+  "Channel": "",
+  "IncludePrerelease": false,
+  "StartupDecisionTimeoutSeconds": 15,
+  "DownloadTimeoutSeconds": 600,
+  "MaximumDeltasBeforeFallback": 3
+}
