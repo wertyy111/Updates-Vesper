@@ -1,5 +1,0 @@
-{
-    "PublishUrl": "https://vesper-account-api-3516.vesperlauncher3516.workers.dev/api/v1/profile/skin",
-    "LookupByUsernameUrl": "https://vesper-account-api-3516.vesperlauncher3516.workers.dev/api/v1/profile/skin/by-username",
-    "LookupByUuidUrl": "https://vesper-account-api-3516.vesperlauncher3516.workers.dev/api/v1/profile/skin/by-uuid"
-}
