@@ -24,7 +24,7 @@ _build_verify/
 _tmp_probe/
 _tmp_catalog_probe/
 _latest_fixed_launcher/
-MinecraftCheatLauncher/_temp_build/
+VesperLauncher/_temp_build/
 
 # Installer staging artifacts
 _windows_build/payload*.zip
@@ -40,12 +40,12 @@ backend/vesper-account-api/node_modules/
 backend/vesper-account-api/.env
 
 # Generated launcher runtime data
-MinecraftCheatLauncher/**/GameData/
-MinecraftCheatLauncher/**/.launcher-data/
-MinecraftCheatLauncher/**/.launcher-temp/
-MinecraftCheatLauncher/**/*.WebView2/
-MinecraftCheatLauncher/UserInterface/node_modules/
-MinecraftCheatLauncher/UserInterface/dist/
-MinecraftCheatLauncher/UserInterface/*.tsbuildinfo
-MinecraftCheatLauncher/UserInterface/vite.config.js
-MinecraftCheatLauncher/UserInterface/vite.config.d.ts
+VesperLauncher/**/GameData/
+VesperLauncher/**/.launcher-data/
+VesperLauncher/**/.launcher-temp/
+VesperLauncher/**/*.WebView2/
+VesperLauncher/UserInterface/node_modules/
+VesperLauncher/UserInterface/dist/
+VesperLauncher/UserInterface/*.tsbuildinfo
+VesperLauncher/UserInterface/vite.config.js
+VesperLauncher/UserInterface/vite.config.d.ts

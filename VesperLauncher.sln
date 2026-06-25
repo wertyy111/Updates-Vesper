@@ -2,7 +2,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VesperLauncher", "MinecraftCheatLauncher\VesperLauncher.csproj", "{AA41B194-7E09-8B2D-34C2-4227FF715E25}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VesperLauncher", "VesperLauncher\VesperLauncher.csproj", "{AA41B194-7E09-8B2D-34C2-4227FF715E25}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VesperNet.Service", "windows\VesperNet.Service\VesperNet.Service.csproj", "{8F0CF4C0-3FD8-4D42-9329-40D748C3B8AB}"
 EndProject

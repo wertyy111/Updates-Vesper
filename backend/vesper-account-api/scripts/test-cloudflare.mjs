@@ -8,7 +8,7 @@ function assert(condition, message) {
 }
 
 async function main() {
-  const syncConfigPath = path.resolve("..", "..", "MinecraftCheatLauncher", "account-sync.json");
+  const syncConfigPath = path.resolve("..", "..", "VesperLauncher", "account-sync.json");
   const syncConfigText = (await fs.readFile(syncConfigPath, "utf8")).replace(/^\uFEFF/, "");
   const syncConfig = JSON.parse(syncConfigText);
   const registerUrl = String(syncConfig?.RegisterUrl || "").trim();
