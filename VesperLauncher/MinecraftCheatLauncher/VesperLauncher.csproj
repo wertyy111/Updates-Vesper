@@ -1,0 +1,132 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework Condition="'$(RuntimeIdentifier)' == 'osx-arm64' or '$(RuntimeIdentifier)' == 'osx-x64' or '$(RuntimeIdentifier)' == 'linux-x64'">net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF Condition="'$(TargetFramework)' == 'net10.0-windows'">true</UseWPF>
+    <UseWPF Condition="'$(TargetFramework)' != 'net10.0-windows'">false</UseWPF>
+    <StartupObject>VesperLauncher.Program</StartupObject>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\vesper-app.ico</ApplicationIcon>
+    <Version>1.0.59-beta.1</Version>
+    <AssemblyName>VesperLauncher</AssemblyName>
+    <AssemblyVersion>1.0.59.0</AssemblyVersion>
+    <FileVersion>1.0.59.0</FileVersion>
+    <Company>Vesper Launcher</Company>
+    <Product>Vesper Launcher</Product>
+    <Title>Vesper Launcher</Title>
+    <AssemblyTitle>Vesper Launcher</AssemblyTitle>
+    <Description>Vesper Launcher</Description>
+    <Copyright>Copyright (c) 2026 Vesper Launcher</Copyright>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**</DefaultItemExcludes>
+    <FrontendRoot>$(MSBuildProjectDirectory)\UserInterface</FrontendRoot>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Open.NAT" Version="2.1.0" />
+    <PackageReference Include="Photino.NET" Version="4.0.16" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageReference Include="Velopack" Version="1.2.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <PackageReference Include="BlurredBackground.WPF" Version="1.1.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-windows'">
+    <Compile Remove="**\*.xaml.cs" />
+    <Page Remove="**\*.xaml" />
+    <Compile Remove="PhotinoHost\LauncherWpfBackendHost.cs" />
+    <Compile Remove="WindowsUninstallRegistration.cs" />
+    <Compile Remove="MainWindow.*.cs" />
+    <Compile Remove="StartupUpdateWindow.cs" />
+    <Compile Remove="StartupUpdateWindow.*.cs" />
+    <Compile Remove="AssemblyInfo.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="UserInterface\src\**\*.woff2">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="UserInterface\src\**\*.ttf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="BundledVersions\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="BundledLibraries\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="skin-sync.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="account-sync.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
+    <Content Include="update-config.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\LICENSE.txt">
+      <Link>LICENSE.txt</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <Page Update="App.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Update="MainWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Remove="StartupUpdateWindow.xaml" />
+  </ItemGroup>
+
+  <Target Name="BuildPhotinoFrontend"
+          BeforeTargets="AssignTargetPaths"
+          Condition="Exists('$(FrontendRoot)\\package.json') and '$(SkipFrontendBuild)' != 'true'">
+    <Exec WorkingDirectory="$(FrontendRoot)" Command="npm ci" Condition="!Exists('$(FrontendRoot)\\node_modules')" />
+    <Exec WorkingDirectory="$(FrontendRoot)" Command="npm run build" />
+  </Target>
+
+  <Target Name="IncludePhotinoFrontendDist"
+          BeforeTargets="AssignTargetPaths"
+          DependsOnTargets="BuildPhotinoFrontend">
+    <ItemGroup Condition="Exists('$(FrontendRoot)\\dist')">
+      <Content Include="UserInterface\dist\**\*">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </Content>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="FailIfReleaseLauncherOutputIsLocked"
+          BeforeTargets="_CopyOutOfDateSourceItemsToOutputDirectory"
+          Condition="'$(Configuration)' == 'Release' and '$(UseAppHost)' != 'false' and '$(SkipLockedLauncherCheck)' != 'true'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\scripts\Assert-LauncherOutputUnlocked.ps1&quot; &quot;$(TargetDir)$(AssemblyName).exe&quot; &quot;$(TargetPath)&quot;" />
+  </Target>
+
+</Project>
+
