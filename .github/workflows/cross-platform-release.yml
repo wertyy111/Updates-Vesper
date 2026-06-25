@@ -231,11 +231,49 @@ jobs:
             _build_verify/release-artifacts/releases.*.json
           if-no-files-found: error
 
+  windows-setup:
+    name: Windows Setup
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: "VesperLauncher/UserInterface/package-lock.json"
+
+      - name: Build Velopack Windows
+        shell: pwsh
+        run: |
+          ./scripts/Publish-VelopackUpdate.ps1 `
+            -Version "${{ github.event.inputs.version || github.ref_name }}" `
+            -SkipPreviousDownload
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vesper-windows-setup
+          path: |
+            _build_verify/release-artifacts/*.exe
+            _build_verify/release-artifacts/*.nupkg
+            _build_verify/release-artifacts/releases.*.json
+          if-no-files-found: error
+
   upload-release:
     name: Upload release assets
     needs:
       - linux-appimage
       - macos-dmg
+      - windows-setup
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'push' || github.event.inputs.upload_release == 'true' }}
 
@@ -258,6 +296,7 @@ jobs:
             dist/*.pkg
             dist/*.zip
             dist/*.nupkg
+            dist/*.exe
             dist/releases.*.json
           fail_on_unmatched_files: true
           token: ${{ secrets.GITHUB_TOKEN }}
