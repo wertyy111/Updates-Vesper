@@ -260,7 +260,7 @@ jobs:
             dist/*.nupkg
             dist/releases.*.json
           fail_on_unmatched_files: true
-          token: ${{ secrets.VPK_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
 
 
