@@ -50,15 +50,53 @@ jobs:
           scripts_dir="work/pkg-scripts-${{ matrix.rid }}"
           component_pkg="work/VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}-component.pkg"
           final_pkg="VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}.pkg"
+          app_path="$root_dir/Applications/Vesper Launcher.app"
+          resources_dir="$app_path/Contents/Resources"
+          plist_path="$app_path/Contents/Info.plist"
 
           mkdir -p "$extract_dir" "$root_dir/Applications" "$scripts_dir"
           tar -xzf "$archive" -C "$extract_dir"
+          rm -rf "$root_dir/Applications/Vesper Launcher.app"
           cp -R "$extract_dir/Vesper Launcher.app" "$root_dir/Applications/"
-          chmod +x "$root_dir/Applications/Vesper Launcher.app/Contents/MacOS/VesperLauncher"
+          chmod +x "$app_path/Contents/MacOS/VesperLauncher"
+
+          if [[ -f "$resources_dir/vesper-logo.png" ]]; then
+            iconset="work/vesper.iconset"
+            rm -rf "$iconset"
+            mkdir -p "$iconset"
+            sips -z 16 16     "$resources_dir/vesper-logo.png" --out "$iconset/icon_16x16.png" >/dev/null
+            sips -z 32 32     "$resources_dir/vesper-logo.png" --out "$iconset/icon_16x16@2x.png" >/dev/null
+            sips -z 32 32     "$resources_dir/vesper-logo.png" --out "$iconset/icon_32x32.png" >/dev/null
+            sips -z 64 64     "$resources_dir/vesper-logo.png" --out "$iconset/icon_32x32@2x.png" >/dev/null
+            sips -z 128 128   "$resources_dir/vesper-logo.png" --out "$iconset/icon_128x128.png" >/dev/null
+            sips -z 256 256   "$resources_dir/vesper-logo.png" --out "$iconset/icon_128x128@2x.png" >/dev/null
+            sips -z 256 256   "$resources_dir/vesper-logo.png" --out "$iconset/icon_256x256.png" >/dev/null
+            sips -z 512 512   "$resources_dir/vesper-logo.png" --out "$iconset/icon_256x256@2x.png" >/dev/null
+            sips -z 512 512   "$resources_dir/vesper-logo.png" --out "$iconset/icon_512x512.png" >/dev/null
+            sips -z 1024 1024 "$resources_dir/vesper-logo.png" --out "$iconset/icon_512x512@2x.png" >/dev/null
+            iconutil -c icns "$iconset" -o "$resources_dir/vesper-app.icns"
+            /usr/libexec/PlistBuddy -c "Delete :CFBundleIconFile" "$plist_path" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string vesper-app" "$plist_path"
+          fi
+
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleName" "$plist_path" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleName string Vesper Launcher" "$plist_path"
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleDisplayName" "$plist_path" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Vesper Launcher" "$plist_path"
+          /usr/libexec/PlistBuddy -c "Delete :CFBundlePackageType" "$plist_path" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string APPL" "$plist_path"
+
+          cat > "$scripts_dir/preinstall" <<'SCRIPT'
+          #!/bin/bash
+          rm -rf "/Applications/Vesper Launcher.app" "/Applications/Vesper Launcher 2.app"
+          exit 0
+          SCRIPT
+          chmod +x "$scripts_dir/preinstall"
 
           cat > "$scripts_dir/postinstall" <<'SCRIPT'
           #!/bin/bash
           chmod +x "/Applications/Vesper Launcher.app/Contents/MacOS/VesperLauncher" 2>/dev/null || true
+          touch "/Applications/Vesper Launcher.app" 2>/dev/null || true
           exit 0
           SCRIPT
           chmod +x "$scripts_dir/postinstall"
