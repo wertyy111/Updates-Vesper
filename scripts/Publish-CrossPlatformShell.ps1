@@ -12,7 +12,8 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$projectPath = Join-Path (Join-Path $repoRoot 'VesperLauncherApp') 'VesperLauncher.CrossPlatform.csproj'
+$projectName = if (Test-Path (Join-Path $repoRoot 'VesperLauncherApp')) { 'VesperLauncherApp' } else { 'VesperLauncher' }
+$projectPath = Join-Path (Join-Path $repoRoot $projectName) 'VesperLauncher.CrossPlatform.csproj'
 $outputRoot = Join-Path $repoRoot '_build_verify/cross-platform-publish'
 $nugetRoot = Join-Path $repoRoot '_build_verify/nuget-packages'
 $temporaryRoot = Join-Path $repoRoot '_build_verify/tmp'
