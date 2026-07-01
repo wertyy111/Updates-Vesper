@@ -56,12 +56,7 @@ public sealed class PlatformPathService : IPlatformPathService
 
     private string ResolveMinecraftDirectory(PlatformKind platformKind)
     {
-        return platformKind switch
-        {
-            PlatformKind.Windows => Path.Combine(UserDataDirectory, ".minecraft"),
-            PlatformKind.MacOs => Path.Combine(UserDataDirectory, "minecraft"),
-            _ => Path.Combine(UserProfileDirectory, ".minecraft")
-        };
+        return EnsureDirectory(Path.Combine(AppContext.BaseDirectory, "GameData", "minecraft_vanilla"));
     }
 
     private static string ResolveUserDataDirectory(PlatformKind platformKind)

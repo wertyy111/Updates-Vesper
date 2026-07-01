@@ -20,6 +20,12 @@ internal static class VesperSkinRegistry
     };
     private static readonly string RegistryPath = LauncherDataPaths.GetDataFilePath("skin-registry.json");
     private static readonly string SyncConfigPath = LauncherDataPaths.GetDataFilePath("skin-sync.json");
+    private static string? _lastAccessToken;
+
+    public static void SetAccessToken(string? accessToken)
+    {
+        _lastAccessToken = string.IsNullOrWhiteSpace(accessToken) ? null : accessToken.Trim();
+    }
 
     public static void SaveOrUpdate(
         string username,
@@ -55,6 +61,8 @@ internal static class VesperSkinRegistry
         {
             return;
         }
+
+        SetAccessToken(accessToken);
 
         try
         {
@@ -219,7 +227,7 @@ internal static class VesperSkinRegistry
         }
 
         var requestUrl = $"{config.LookupByUsernameUrl}?username={Uri.EscapeDataString(username)}";
-        return LoadEntryFromUrlUnsafe(requestUrl);
+        return LoadEntryFromUrlUnsafe(requestUrl, _lastAccessToken);
     }
 
     private static VesperSkinRegistryEntry? TryLoadEntryByUuidUnsafe(VesperSkinRegistrySyncConfig config, string uuid)
@@ -230,12 +238,18 @@ internal static class VesperSkinRegistry
         }
 
         var requestUrl = $"{config.LookupByUuidUrl}?uuid={Uri.EscapeDataString(uuid)}";
-        return LoadEntryFromUrlUnsafe(requestUrl);
+        return LoadEntryFromUrlUnsafe(requestUrl, _lastAccessToken);
     }
 
-    private static VesperSkinRegistryEntry? LoadEntryFromUrlUnsafe(string requestUrl)
+    private static VesperSkinRegistryEntry? LoadEntryFromUrlUnsafe(string requestUrl, string? accessToken)
     {
-        using var response = Http.GetAsync(requestUrl).GetAwaiter().GetResult();
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        if (!string.IsNullOrWhiteSpace(accessToken))
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
+        }
+
+        using var response = Http.Send(request);
         if (!response.IsSuccessStatusCode)
         {
             return null;

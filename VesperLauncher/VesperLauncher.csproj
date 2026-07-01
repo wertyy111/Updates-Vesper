@@ -3,15 +3,13 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <TargetFramework Condition="'$(RuntimeIdentifier)' == 'osx-arm64' or '$(RuntimeIdentifier)' == 'osx-x64' or '$(RuntimeIdentifier)' == 'linux-x64'">net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF Condition="'$(TargetFramework)' == 'net10.0-windows'">true</UseWPF>
-    <UseWPF Condition="'$(TargetFramework)' != 'net10.0-windows'">false</UseWPF>
+    <UseWPF>true</UseWPF>
     <StartupObject>VesperLauncher.Program</StartupObject>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\vesper-app.ico</ApplicationIcon>
-    <Version>1.0.59-beta.1</Version>
+    <Version>1.0.60-beta.1</Version>
     <AssemblyName>VesperLauncher</AssemblyName>
     <AssemblyVersion>1.0.59.0</AssemblyVersion>
     <FileVersion>1.0.59.0</FileVersion>
@@ -36,25 +34,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="LZMA-SDK" Version="22.1.1" />
+    <PackageReference Include="Lzma.Net" Version="5.8.3.2" />
     <PackageReference Include="Open.NAT" Version="2.1.0" />
     <PackageReference Include="Photino.NET" Version="4.0.16" />
+    <PackageReference Include="SevenZipExtractor" Version="1.0.19" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageReference Include="Squid-Box.SevenZipSharp" Version="1.6.2.24" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
     <PackageReference Include="Velopack" Version="1.2.0" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
-    <PackageReference Include="BlurredBackground.WPF" Version="1.1.0" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-windows'">
-    <Compile Remove="**\*.xaml.cs" />
-    <Page Remove="**\*.xaml" />
-    <Compile Remove="PhotinoHost\LauncherWpfBackendHost.cs" />
-    <Compile Remove="WindowsUninstallRegistration.cs" />
-    <Compile Remove="MainWindow.*.cs" />
-    <Compile Remove="StartupUpdateWindow.cs" />
-    <Compile Remove="StartupUpdateWindow.*.cs" />
-    <Compile Remove="AssemblyInfo.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -92,28 +80,12 @@
     </Content>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
-    <Page Update="App.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Update="MainWindow.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Remove="StartupUpdateWindow.xaml" />
-  </ItemGroup>
-
-  <Target Name="BuildPhotinoFrontend"
-          BeforeTargets="AssignTargetPaths"
-          Condition="Exists('$(FrontendRoot)\\package.json') and '$(SkipFrontendBuild)' != 'true'">
+  <Target Name="BuildPhotinoFrontend" BeforeTargets="AssignTargetPaths" Condition="Exists('$(FrontendRoot)\\package.json') and '$(SkipFrontendBuild)' != 'true'">
     <Exec WorkingDirectory="$(FrontendRoot)" Command="npm ci" Condition="!Exists('$(FrontendRoot)\\node_modules')" />
     <Exec WorkingDirectory="$(FrontendRoot)" Command="npm run build" />
   </Target>
 
-  <Target Name="IncludePhotinoFrontendDist"
-          BeforeTargets="AssignTargetPaths"
-          DependsOnTargets="BuildPhotinoFrontend">
+  <Target Name="IncludePhotinoFrontendDist" BeforeTargets="AssignTargetPaths" DependsOnTargets="BuildPhotinoFrontend">
     <ItemGroup Condition="Exists('$(FrontendRoot)\\dist')">
       <Content Include="UserInterface\dist\**\*">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -122,11 +94,12 @@
     </ItemGroup>
   </Target>
 
-  <Target Name="FailIfReleaseLauncherOutputIsLocked"
-          BeforeTargets="_CopyOutOfDateSourceItemsToOutputDirectory"
-          Condition="'$(Configuration)' == 'Release' and '$(UseAppHost)' != 'false' and '$(SkipLockedLauncherCheck)' != 'true'">
+  <Target Name="CleanPhotinoFrontendDistOutput" BeforeTargets="_CopyOutOfDateSourceItemsToOutputDirectory" Condition="Exists('$(TargetDir)UserInterface\dist')">
+    <RemoveDir Directories="$(TargetDir)UserInterface\dist" />
+  </Target>
+
+  <Target Name="FailIfReleaseLauncherOutputIsLocked" BeforeTargets="_CopyOutOfDateSourceItemsToOutputDirectory" Condition="'$(Configuration)' == 'Release' and '$(UseAppHost)' != 'false' and '$(SkipLockedLauncherCheck)' != 'true'">
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\scripts\Assert-LauncherOutputUnlocked.ps1&quot; &quot;$(TargetDir)$(AssemblyName).exe&quot; &quot;$(TargetPath)&quot;" />
   </Target>
 
 </Project>
-

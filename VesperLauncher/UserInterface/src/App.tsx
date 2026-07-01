@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { photinoBridge } from './bridge';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { GlassTuningSettings, HostSnapshot, PanelRenderProps } from './types';
@@ -9,10 +9,13 @@ import { SkinPanel } from './components/panels/SkinPanel';
 import { BackgroundPanel } from './components/panels/BackgroundPanel';
 import { ModsPanel } from './components/panels/ModsPanel';
 import { FriendsPanel } from './components/panels/FriendsPanel';
+import { NotificationsPanel } from './components/panels/NotificationsPanel';
 import { EmptyPanel } from './components/panels/EmptyPanel';
 import { LoadingScreen } from './components/common/LoadingScreen';
 import html2canvasScriptUrl from './vendor/html2canvas.min.js?url';
 import liquidGlScriptUrl from './vendor/liquidGL.js?url';
+
+const RESIZE_DIRECTIONS = ['top', 'right', 'bottom', 'left', 'top-left', 'top-right', 'bottom-left', 'bottom-right'];
 
 const BOTTOM_SECTION_ITEMS = [
   { id: 'skin', label: 'Скин' },
@@ -21,8 +24,9 @@ const BOTTOM_SECTION_ITEMS = [
   { id: 'friends', label: 'Друзья' }
 ];
 
-const WPF_WIDE_PANEL_SECTIONS = new Set(['account', 'settings', ...BOTTOM_SECTION_ITEMS.map((section) => section.id)]);
-const SETTINGS_WIDTH_PANEL_SECTIONS = new Set(['account', 'settings', ...BOTTOM_SECTION_ITEMS.map((section) => section.id)]);
+const WPF_WIDE_PANEL_SECTIONS = new Set(['account', 'settings', 'notifications', ...BOTTOM_SECTION_ITEMS.map((section) => section.id)]);
+const SETTINGS_WIDTH_PANEL_SECTIONS = new Set(['account', 'settings', 'notifications', ...BOTTOM_SECTION_ITEMS.map((section) => section.id)]);
+const MAX_RENDERED_VERSION_OPTIONS = 120;
 
 const DEFAULT_GLASS_TUNING: GlassTuningSettings = {
   refraction: 0.014,
@@ -45,6 +49,7 @@ function App() {
   const [jvmArgsDraft, setJvmArgsDraft] = useState('');
   const [jvmArgsDirty, setJvmArgsDirty] = useState(false);
   const [versionMenuOpen, setVersionMenuOpen] = useState(false);
+  const [versionSearch, setVersionSearch] = useState('');
   const [versionMenuStyle, setVersionMenuStyle] = useState<CSSProperties>({});
   const versionPickerButtonRef = useRef<HTMLButtonElement | null>(null);
   const settingsLiquidButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -112,6 +117,30 @@ function App() {
     const intervalId = window.setInterval(() => photinoBridge.requestSnapshot(), 1200);
     return () => window.clearInterval(intervalId);
   }, []);
+
+  useEffect(() => {
+    if (loadingState) {
+      return;
+    }
+
+    let timeoutId = 0;
+    const publishWindowSize = () => {
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        photinoBridge.sendCommand('host.windowSize', {
+          width: Math.round(window.innerWidth),
+          height: Math.round(window.innerHeight)
+        });
+      }, 250);
+    };
+
+    publishWindowSize();
+    window.addEventListener('resize', publishWindowSize);
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener('resize', publishWindowSize);
+    };
+  }, [loadingState]);
 
   useEffect(() => {
     if (!launcher || accountDirty) return;
@@ -215,7 +244,7 @@ function App() {
         }
 
         existingScript.addEventListener('load', () => resolve(), { once: true });
-        existingScript.addEventListener('error', () => reject(new Error(`Не удалось загрузить ${id}`)), { once: true });
+        existingScript.addEventListener('error', () => reject(new Error(`Failed to load ${id}`)), { once: true });
         return;
       }
 
@@ -227,7 +256,7 @@ function App() {
         script.dataset.loaded = 'true';
         resolve();
       }, { once: true });
-      script.addEventListener('error', () => reject(new Error(`Не удалось загрузить ${id}`)), { once: true });
+      script.addEventListener('error', () => reject(new Error(`Failed to load ${id}`)), { once: true });
       document.body.appendChild(script);
     });
 
@@ -280,9 +309,11 @@ function App() {
     };
 
     initializeLiquidSettingsButton();
+    window.addEventListener('vesper-layout-change', initializeLiquidSettingsButton);
     return () => {
       cancelled = true;
       window.clearTimeout(readyFallbackId);
+      window.removeEventListener('vesper-layout-change', initializeLiquidSettingsButton);
     };
   }, [loadingState, activeSection, versionMenuOpen]);
 
@@ -311,6 +342,31 @@ function App() {
     ? `url(${theme.backgroundUrl}) center / cover no-repeat`
     : 'radial-gradient(circle at top, rgba(111, 144, 166, 0.18) 0%, rgba(10, 12, 15, 0) 40%), linear-gradient(180deg, #0b0e11 0%, #060709 100%)';
 
+  useEffect(() => {
+    const rootEl = document.getElementById('root');
+    if (rootEl) {
+      rootEl.style.background = pageBackground;
+      rootEl.style.borderRadius = '24px';
+      rootEl.style.overflow = 'hidden';
+    }
+    
+    // Clear initialization flags so layers capture the new background texture
+    const layers = document.querySelectorAll<HTMLElement>('.liquid-glass-layer');
+    layers.forEach((el) => {
+      delete el.dataset.liquidInitialized;
+      delete el.dataset.liquidBatch;
+    });
+
+    const renderer = (window as any).__liquidGLRenderer__;
+    if (renderer) {
+      renderer._snapshotCanvas?.remove?.();
+      renderer.captureSnapshot?.();
+      renderer.render?.();
+    }
+
+    window.dispatchEvent(new Event('vesper-layout-change'));
+  }, [pageBackground]);
+
   const openSection = (sectionId: string) => {
     if (!launcher) return;
     if (launcher.activeSection === sectionId) {
@@ -331,10 +387,28 @@ function App() {
     action();
   };
 
+  const stopButtonMouse = (event: MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+  };
+
+  const runButtonClick = (event: MouseEvent<HTMLElement>, action: () => void) => {
+    event.preventDefault();
+    event.stopPropagation();
+    action();
+  };
+
   const startWindowDrag = (event: MouseEvent<HTMLElement>) => {
     if (event.button !== 0 || event.detail > 1) return;
     if ((event.target as HTMLElement).closest('button, input, select, textarea, a')) return;
+    event.preventDefault();
     photinoBridge.sendCommand('host.startDrag');
+  };
+
+  const startWindowResize = (event: MouseEvent<HTMLElement>, direction: string) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    photinoBridge.sendCommand('host.startResize', { direction });
   };
 
   const submitAccount = () => {
@@ -357,12 +431,39 @@ function App() {
   const versionOptions = (main.availableVersions ?? []) as Array<Record<string, any>>;
   const selectedVersionKey = String(main.selectedVersionKey ?? '');
   const selectedVersion = versionOptions.find((entry) => String(entry.key ?? '') === selectedVersionKey);
-  const selectedVersionLabel = selectedVersion?.displayName ?? main.inlineVersionLabel ?? '\u0412\u0435\u0440\u0441\u0438\u044f: \u043d\u0435 \u0432\u044b\u0431\u0440\u0430\u043d\u0430';
+  const selectedVersionLabel = selectedVersion?.displayName ?? main.inlineVersionLabel ?? 'Версия: не выбрана';
+  const normalizedVersionSearch = versionSearch.trim().toLowerCase();
+  const filteredVersionOptions = useMemo(() => (
+    normalizedVersionSearch
+      ? versionOptions.filter((entry) => {
+        const haystack = [
+          entry.displayName,
+          entry.subtitle,
+          entry.availabilityNote,
+          entry.baseVersionId,
+          entry.versionId,
+          Array.isArray(entry.loaders) ? entry.loaders.join(' ') : ''
+        ].map((value) => String(value ?? '').toLowerCase()).join(' ');
+        return haystack.includes(normalizedVersionSearch);
+      })
+      : versionOptions
+  ), [normalizedVersionSearch, versionOptions]);
+  const visibleVersionOptions = useMemo(() => {
+    const visible = filteredVersionOptions.slice(0, MAX_RENDERED_VERSION_OPTIONS);
+    if (!selectedVersion || visible.some((entry) => String(entry.key ?? '') === selectedVersionKey)) {
+      return visible;
+    }
+
+    return [selectedVersion, ...visible.slice(0, Math.max(0, MAX_RENDERED_VERSION_OPTIONS - 1))];
+  }, [filteredVersionOptions, selectedVersion, selectedVersionKey]);
+  const hiddenVersionOptionsCount = Math.max(0, filteredVersionOptions.length - visibleVersionOptions.length);
   const progressPercent = main.progressPercent ?? hostSnapshot?.update?.progressPercent ?? 0;
+  const isProgressIndeterminate = Boolean(main.isProgressIndeterminate || hostSnapshot?.update?.isIndeterminate);
+  const progressFillStyle = isProgressIndeterminate ? undefined : { width: `${progressPercent}%` };
   const rightPanelVisible = !loadingState && activeSection !== 'none';
   const isWideSidePanel = !loadingState && WPF_WIDE_PANEL_SECTIONS.has(activeSection);
   const isSettingsWidthSidePanel = !loadingState && SETTINGS_WIDTH_PANEL_SECTIONS.has(activeSection);
-  const isLauncherSettingsPanel = !loadingState && activeSection === 'settings';
+  const isLauncherSettingsPanel = !loadingState && (activeSection === 'settings' || activeSection === 'friends' || activeSection === 'notifications');
 
   const panelProps: PanelRenderProps | null = launcher
     ? {
@@ -375,8 +476,12 @@ function App() {
       }
     : null;
 
+  const themeRenderKey = `${theme.backgroundUrl ?? 'default'}|${theme.glassTone ?? 'default'}`;
+  const playerDisplayName = String(account.currentNickname || main.nickname || main.usernameText || '').trim();
+  const playerFieldText = playerDisplayName || 'Введите ник';
+
   return (
-    <div className="app-shell" style={{ background: pageBackground }} key={theme.backgroundUrl ?? 'default'}>
+    <div className="app-shell" style={{ background: pageBackground }} key={themeRenderKey}>
       <div className="liquid-glass-snapshot-source" style={{ background: pageBackground }} aria-hidden="true" />
       <div className="procedural-background" />
       <div className="background-vignette" />
@@ -385,22 +490,45 @@ function App() {
         <LoadingScreen hostSnapshot={hostSnapshot} runtimeError={runtimeError} />
       ) : (
         <div className="launcher-frame">
-        <header className="titlebar" onMouseDown={startWindowDrag} onDoubleClick={() => photinoBridge.sendCommand('host.toggleMaximize')}>
+        {RESIZE_DIRECTIONS.map((direction) => (
+          <span
+            key={direction}
+            className={`window-resize-zone resize-${direction}`}
+            onMouseDown={(event) => startWindowResize(event, direction)}
+            aria-hidden="true"
+          />
+        ))}
+
+        <header className="titlebar" onMouseDown={startWindowDrag}>
           <div className="titlebar-brand">
             {theme.logoUrl ? <img className="brand-logo" src={theme.logoUrl} alt="Vesper" /> : null}
             <span>Vesper Launcher</span>
           </div>
 
           <div className="titlebar-actions">
-            <button className="title-icon-button notifications-button" onPointerDown={stopButtonPointer} onPointerUp={(event) => runButtonAction(event, () => openSection('friends'))} onClick={(event) => event.preventDefault()} type="button" title="Приглашения в друзья">
-              <span className="mdl-icon">&#xE7F4;</span>
+            <button className="title-icon-button notifications-button" onMouseDown={stopButtonMouse} onClick={(event) => runButtonClick(event, () => openSection('notifications'))} type="button" title="Уведомления">
+              <span className="safe-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+              </span>
               {launcher?.notificationsCount ? <strong className="notification-badge">{launcher.notificationsCount}</strong> : null}
             </button>
-            <button className="title-account-button" onPointerDown={stopButtonPointer} onPointerUp={(event) => runButtonAction(event, () => openSection('account'))} onClick={(event) => event.preventDefault()} type="button">
+            <button className="title-account-button" onMouseDown={stopButtonMouse} onClick={(event) => runButtonClick(event, () => openSection('account'))} type="button">
               {account.currentNickname || main.nickname || 'Создайте аккаунт'}
             </button>
-            <button className="title-icon-button" onPointerDown={stopButtonPointer} onPointerUp={(event) => runButtonAction(event, () => photinoBridge.sendCommand('host.minimize'))} onClick={(event) => event.preventDefault()} type="button">−</button>
-            <button className="title-icon-button" onPointerDown={stopButtonPointer} onPointerUp={(event) => runButtonAction(event, () => photinoBridge.sendCommand('host.close'))} onClick={(event) => event.preventDefault()} type="button">✕</button>
+            <button className="title-icon-button" onMouseDown={stopButtonMouse} onClick={(event) => runButtonClick(event, () => photinoBridge.sendCommand('host.minimize'))} type="button" title="Свернуть">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round">
+                <line x1="4" y1="12" x2="20" y2="12" />
+              </svg>
+            </button>
+            <button className="title-icon-button" onMouseDown={stopButtonMouse} onClick={(event) => runButtonClick(event, () => photinoBridge.sendCommand('host.close'))} type="button" title="Закрыть">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round">
+                <line x1="6" y1="6" x2="18" y2="18" />
+                <line x1="18" y1="6" x2="6" y2="18" />
+              </svg>
+            </button>
           </div>
         </header>
 
@@ -416,13 +544,18 @@ function App() {
                     <div className="classic-field-block">
                       <label className="classic-label">Игрок</label>
                       <div className="classic-inline-row">
-                        <button className="static-glass-control text-left left-liquid-glass-button" data-liquid-label={account.currentNickname || main.nickname || main.usernameText || 'Создайте аккаунт'} onPointerDown={stopButtonPointer} onPointerUp={(event) => runButtonAction(event, () => openSection('account'))} onClick={(event) => event.preventDefault()} type="button">
+                        <button className="static-glass-control text-left left-liquid-glass-button" data-liquid-label={playerFieldText} onPointerDown={stopButtonPointer} onPointerUp={(event) => runButtonAction(event, () => openSection('account'))} onClick={(event) => event.preventDefault()} type="button">
                           <span className="left-liquid-glass-layer liquid-glass-layer" aria-hidden="true" />
-                          <span className="left-liquid-glass-content">{account.currentNickname || main.nickname || main.usernameText || 'Создайте аккаунт'}</span>
+                          <span className="left-liquid-glass-content">{playerFieldText}</span>
                         </button>
-                        <button className="input-icon-button left-liquid-glass-button" data-liquid-icon={'\uE77B'} onPointerDown={stopButtonPointer} onPointerUp={(event) => runButtonAction(event, () => openSection('account'))} onClick={(event) => event.preventDefault()} type="button" title="Меню игрока">
+                        <button className="input-icon-button left-liquid-glass-button" data-liquid-icon={'@'} onPointerDown={stopButtonPointer} onPointerUp={(event) => runButtonAction(event, () => openSection('account'))} onClick={(event) => event.preventDefault()} type="button" title="Меню игрока">
                           <span className="left-liquid-glass-layer liquid-glass-layer" aria-hidden="true" />
-                          <span className="mdl-icon left-liquid-glass-content">&#xE77B;</span>
+                          <span className="safe-icon left-liquid-glass-content">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                              <circle cx="12" cy="7" r="4" />
+                            </svg>
+                          </span>
                         </button>
                       </div>
                     </div>
@@ -443,13 +576,27 @@ function App() {
                           >
                             <span className="left-liquid-glass-layer liquid-glass-layer" aria-hidden="true" />
                             <span className="version-picker-label left-liquid-glass-content">{selectedVersionLabel}</span>
-                            <span className="select-chevron left-liquid-glass-content">&#xE70D;</span>
+                            <span className="select-chevron left-liquid-glass-content">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="6 9 12 15 18 9" />
+                              </svg>
+                            </span>
                           </button>
 
                           {versionMenuOpen ? (
                             <div className="version-picker-menu" role="listbox" style={versionMenuStyle}>
                               <span className="version-picker-menu-liquid-layer left-liquid-glass-layer liquid-glass-layer" aria-hidden="true" />
-                              {versionOptions.map((entry) => {
+                              <input
+                                className="launcher-input version-picker-search"
+                                value={versionSearch}
+                                onChange={(event) => setVersionSearch(event.target.value)}
+                                onPointerDown={(event) => event.stopPropagation()}
+                                placeholder="Версия, vanilla, forge, fabric, optifine"
+                              />
+                              {filteredVersionOptions.length === 0 ? (
+                                <span className="version-picker-empty">Ничего не найдено</span>
+                              ) : null}
+                              {visibleVersionOptions.map((entry) => {
                                 const key = String(entry.key ?? '');
                                 const isSelected = key === selectedVersionKey;
 
@@ -463,6 +610,7 @@ function App() {
                                     onPointerDown={stopButtonPointer}
                                     onPointerUp={(event) => runButtonAction(event, () => {
                                       setVersionMenuOpen(false);
+                                      setVersionSearch('');
                                       photinoBridge.sendCommand('main.selectVersionKey', { key });
                                     })}
                                     onClick={(event) => event.preventDefault()}
@@ -471,6 +619,9 @@ function App() {
                                   </button>
                                 );
                               })}
+                              {hiddenVersionOptionsCount > 0 ? (
+                                <span className="version-picker-empty">Показано {visibleVersionOptions.length} из {filteredVersionOptions.length}. Уточните поиск.</span>
+                              ) : null}
                             </div>
                           ) : null}
                         </div>
@@ -478,27 +629,40 @@ function App() {
                         <div className="select-shell static-glass-control">
                           <select value={main.selectedVersionKey ?? ''} onChange={(e) => photinoBridge.sendCommand('main.selectVersionKey', { key: e.target.value })}>
                             <option value="">{main.inlineVersionLabel || 'Версия: не выбрана'}</option>
-                            {versionOptions.map((entry) => (
+                            {visibleVersionOptions.map((entry) => (
                               <option key={String(entry.key)} value={String(entry.key)}>{entry.displayName}</option>
                             ))}
                           </select>
-                          <span className="select-chevron">&#xE70D;</span>
+                          <span className="select-chevron">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                          </span>
                         </div>
-                        <button className="input-icon-button left-liquid-glass-button" data-liquid-icon={'\uE8B7'} onPointerDown={stopButtonPointer} onPointerUp={(event) => runButtonAction(event, () => photinoBridge.sendCommand('main.openProfileFolder'))} onClick={(event) => event.preventDefault()} type="button" title="Папка профиля">
+                        <button className="input-icon-button left-liquid-glass-button" data-liquid-icon={'#'} onPointerDown={stopButtonPointer} onPointerUp={(event) => runButtonAction(event, () => photinoBridge.sendCommand('main.openProfileFolder'))} onClick={(event) => event.preventDefault()} type="button" title="Папка профиля">
                           <span className="left-liquid-glass-layer liquid-glass-layer" aria-hidden="true" />
-                          <span className="mdl-icon left-liquid-glass-content">&#xE8B7;</span>
+                          <span className="safe-icon left-liquid-glass-content">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                            </svg>
+                          </span>
                         </button>
                       </div>
 
                       <div className="classic-inline-row launch-row-classic">
                         <button className="main-glass-button launch-button-classic left-liquid-glass-button" data-liquid-label={main.launchButtonText || 'Играть'} onPointerDown={stopButtonPointer} onPointerUp={(event) => runButtonAction(event, () => photinoBridge.sendCommand('main.launch'))} onClick={(event) => event.preventDefault()} type="button">
                           <span className="left-liquid-glass-layer liquid-glass-layer" aria-hidden="true" />
-                          <span className="launch-button-progress" style={{ width: `${progressPercent}%` }} />
+                          <span className={`launch-button-progress ${isProgressIndeterminate ? 'indeterminate' : ''}`} style={progressFillStyle} />
                           <span className="left-liquid-glass-content">{main.launchButtonText || 'Играть'}</span>
                         </button>
-                        <button ref={settingsLiquidButtonRef} className="input-icon-button settings-liquid-button left-liquid-glass-button" data-liquid-ignore="" data-liquid-icon={'\uE713'} onPointerDown={stopButtonPointer} onPointerUp={(event) => runButtonAction(event, () => openSection('settings'))} onClick={(event) => event.preventDefault()} type="button" title="Настройки">
+                        <button ref={settingsLiquidButtonRef} className="input-icon-button settings-liquid-button left-liquid-glass-button" data-liquid-ignore="" data-liquid-icon={'*'} onPointerDown={stopButtonPointer} onPointerUp={(event) => runButtonAction(event, () => openSection('settings'))} onClick={(event) => event.preventDefault()} type="button" title="Настройки">
                           <span className="settings-liquid-glass-test left-liquid-glass-layer liquid-glass-layer" aria-hidden="true" />
-                          <span className="mdl-icon settings-liquid-button-icon left-liquid-glass-content">&#xE713;</span>
+                          <span className="safe-icon settings-liquid-button-icon left-liquid-glass-content">
+                            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="3" />
+                              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                            </svg>
+                          </span>
                         </button>
                       </div>
                     </div>
@@ -508,7 +672,7 @@ function App() {
                     <p className="status-text">{main.statusText || runtimeError || hostSnapshot?.update?.message || 'Готов к запуску'}</p>
                     <p className="progress-text">{main.progressText || hostSnapshot?.update?.detailMessage || 'Ожидание...'}</p>
                     <div className="classic-progress">
-                      <div className={`classic-progress-fill ${main.isProgressIndeterminate ? 'indeterminate' : ''}`} style={{ width: `${progressPercent}%` }} />
+                      <div className={`classic-progress-fill ${isProgressIndeterminate ? 'indeterminate' : ''}`} style={progressFillStyle} />
                       <span>{main.progressOverlayText || hostSnapshot?.update?.progressText || ''}</span>
                     </div>
                   </div>
@@ -526,9 +690,8 @@ function App() {
                     key={section.id}
                     className={`main-glass-button ${launcher?.activeSection === section.id ? 'active' : ''} left-liquid-glass-button`}
                     data-liquid-label={section.label}
-                    onPointerDown={stopButtonPointer}
-                    onPointerUp={(event) => runButtonAction(event, () => openSection(section.id))}
-                    onClick={(event) => event.preventDefault()}
+                    onMouseDown={stopButtonMouse}
+                    onClick={(event) => runButtonClick(event, () => openSection(section.id))}
                     type="button"
                   >
                     <span className="left-liquid-glass-layer liquid-glass-layer" aria-hidden="true" />
@@ -552,6 +715,7 @@ function renderPanel(props: PanelRenderProps) {
     case 'background': return <BackgroundPanel {...props} />;
     case 'mods': return <ModsPanel {...props} />;
     case 'friends': return <FriendsPanel {...props} />;
+    case 'notifications': return <NotificationsPanel {...props} />;
     default: return <EmptyPanel />;
   }
 }

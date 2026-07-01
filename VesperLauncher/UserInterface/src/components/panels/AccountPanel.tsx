@@ -85,7 +85,10 @@ export function AccountPanel({ launcher, accountForm, setAccountForm, setAccount
             {accountText.nickname}
             <input
               className="launcher-input"
+              name="vesper-nickname"
               autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
               spellCheck="false"
               value={accountForm.username}
               onChange={(event) => {
@@ -100,7 +103,9 @@ export function AccountPanel({ launcher, accountForm, setAccountForm, setAccount
             {accountText.password}
             <input
               className="launcher-input"
+              name="vesper-password"
               type="password"
+              autoComplete="new-password"
               value={accountForm.password}
               onChange={(event) => {
                 setAccountDirty(true);
@@ -114,13 +119,11 @@ export function AccountPanel({ launcher, accountForm, setAccountForm, setAccount
             const label = accountForm.mode === 'register' ? accountText.createAccount : accountText.signIn;
             return (
               <button
-                className="primary-button left-liquid-glass-button"
-                data-liquid-label={label}
+                className="primary-button"
                 onClick={submitAccount}
                 type="button"
               >
-                <span className="left-liquid-glass-layer liquid-glass-layer" aria-hidden="true" />
-                <span className="left-liquid-glass-content">{label}</span>
+                {label}
               </button>
             );
           })()}

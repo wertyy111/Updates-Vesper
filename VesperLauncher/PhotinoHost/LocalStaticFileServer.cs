@@ -52,7 +52,11 @@ internal sealed class LocalStaticFileServer : IDisposable
 
     public string BaseUrl { get; }
 
+    public string SplashUrl => BaseUrl + "splash";
+
     public Func<string, Task<string>>? BridgeMessageHandler { get; set; }
+
+    public string? SplashHtml { get; set; }
 
     public static LocalStaticFileServer Start()
     {
@@ -138,6 +142,13 @@ internal sealed class LocalStaticFileServer : IDisposable
         try
         {
             var requestPath = Uri.UnescapeDataString(context.Request.Url?.AbsolutePath ?? "/");
+            LogRequest($"Request: {requestPath}");
+            if (requestPath.Equals("/splash", StringComparison.OrdinalIgnoreCase))
+            {
+                await ServeTextAsync(context, SplashHtml ?? string.Empty, "text/html; charset=utf-8", cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
             if (requestPath.Equals("/bridge-message", StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(context.Request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase))
             {
@@ -157,6 +168,7 @@ internal sealed class LocalStaticFileServer : IDisposable
             {
                 var token = requestPath["/launcher-file/".Length..];
                 var decodedPath = DecodeLauncherFileToken(token);
+                Console.WriteLine($"[StaticServer] Request: {requestPath} -> Decoded: {decodedPath} -> Exists: {File.Exists(decodedPath)}");
                 await ServeFileAsync(context, decodedPath, cancellationToken).ConfigureAwait(false);
                 return;
             }
@@ -308,6 +320,7 @@ internal sealed class LocalStaticFileServer : IDisposable
     {
         if (string.IsNullOrWhiteSpace(absolutePath) || !File.Exists(absolutePath))
         {
+            LogRequest($"File not found or empty path: '{absolutePath}'");
             context.Response.StatusCode = (int)HttpStatusCode.NotFound;
             ApplyCommonResponseHeaders(context.Response);
             context.Response.Close();
@@ -333,6 +346,30 @@ internal sealed class LocalStaticFileServer : IDisposable
         response.Headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
         response.Headers["Access-Control-Allow-Headers"] = "Content-Type";
         response.Headers["Cache-Control"] = "no-store";
+    }
+
+    private static async Task ServeTextAsync(
+        HttpListenerContext context,
+        string text,
+        string contentType,
+        CancellationToken cancellationToken)
+    {
+        var buffer = Encoding.UTF8.GetBytes(text);
+        context.Response.StatusCode = (int)HttpStatusCode.OK;
+        ApplyCommonResponseHeaders(context.Response);
+        context.Response.ContentType = contentType;
+        context.Response.ContentLength64 = buffer.LongLength;
+        await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
+        context.Response.Close();
+    }
+
+    private static void LogRequest(string message)
+    {
+        try
+        {
+            File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "photino-host.log"), $"[{DateTime.Now:O}] [StaticServer] {message}{Environment.NewLine}");
+        }
+        catch { }
     }
 }
 

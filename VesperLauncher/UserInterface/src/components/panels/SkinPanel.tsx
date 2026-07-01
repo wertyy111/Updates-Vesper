@@ -3,7 +3,6 @@ import { SkinViewer, WalkingAnimation } from 'skinview3d';
 import { photinoBridge } from '../../bridge';
 import type { PanelRenderProps } from '../../types';
 import { PanelHeader } from '../common/PanelHeader';
-import { SelectField } from '../common/SelectFields';
 
 interface Skin3DPreviewProps {
   skinUrl: string;
@@ -28,8 +27,7 @@ function Skin3DPreview({ skinUrl, isSlim }: Skin3DPreviewProps) {
       viewer.controls.enableZoom = false;
       viewer.controls.enablePan = false;
 
-      viewer.autoRotate = true;
-      viewer.autoRotateSpeed = 0.8;
+      viewer.autoRotate = false;
 
       viewer.animation = new WalkingAnimation();
       viewer.animation.speed = 0.55;
@@ -53,17 +51,15 @@ function Skin3DPreview({ skinUrl, isSlim }: Skin3DPreviewProps) {
 
 export function SkinPanel({ launcher }: PanelRenderProps) {
   const skin = launcher.skin;
-  const items = (skin.availableSkins ?? []) as Array<Record<string, any>>;
-  const selectedSkin = items.find((item) => item.isSelected);
-  const selectedFileName = String(selectedSkin?.fileName ?? skin.selectedSkinFileName ?? '');
   const selectedSkinUrl = typeof skin.selectedSkinUrl === 'string' && skin.selectedSkinUrl.trim().length > 0
     ? skin.selectedSkinUrl
-    : null;
+    : '';
   const isSlim = !!skin.selectedSkinIsSlim;
+  const modelPreferenceId = skin.modelPreferenceId ?? 'auto';
 
   return (
     <>
-      <PanelHeader title="Скин" subtitle={skin.selectedSkinLabel} />
+      <PanelHeader title="Скин" subtitle={skin.selectedSkinLabel || 'Скин не выбран.'} />
 
       <section className="skin-shell">
         <div className="skin-wpf-layout">
@@ -76,24 +72,60 @@ export function SkinPanel({ launcher }: PanelRenderProps) {
           </div>
 
           <div className="skin-wpf-controls">
-            <label className="field-label">
-              Файл
-              <select className="launcher-select" value={selectedFileName} onChange={(event) => photinoBridge.sendCommand('skin.selectFile', { fileName: event.target.value })}>
-                <option value="">PNG не выбран</option>
-                {items.map((item) => <option key={String(item.fileName)} value={String(item.fileName)}>{item.fileName}</option>)}
-              </select>
-            </label>
-
-            <p className="selected-file-copy">{skin.selectedSkinLabel || selectedFileName || 'Скин не выбран.'}</p>
-
-            <div className="panel-actions-grid two-columns">
-              <button className="subtle-button" onClick={() => photinoBridge.sendCommand('skin.importDialog')} type="button">Импорт</button>
-              <button className="subtle-button" onClick={() => photinoBridge.sendCommand('skin.openFolder')} type="button">Папка</button>
-              <button className="subtle-button" onClick={() => photinoBridge.sendCommand('skin.refresh')} type="button">Обновить</button>
-              <button className="danger-button" onClick={() => photinoBridge.sendCommand('skin.clear')} type="button">Сбросить</button>
+            <div className="skin-control-row">
+              <strong>Скин персонажа</strong>
+              <p>Загрузите свой PNG-файл скина или сбросьте его до стандартного.</p>
+              
+              <div className="skin-action-buttons">
+                <button
+                  className="subtle-button left-liquid-glass-button settings-liquid-glass-button rounded-pill"
+                  onClick={() => photinoBridge.sendCommand('skin.importDialog')}
+                  type="button"
+                >
+                  <span className="settings-liquid-glass-layer liquid-glass-layer" aria-hidden="true" />
+                  <span className="left-liquid-glass-content">Импорт</span>
+                </button>
+                
+                <button
+                  className="danger-button left-liquid-glass-button settings-liquid-glass-button rounded-pill"
+                  onClick={() => photinoBridge.sendCommand('skin.clear')}
+                  type="button"
+                >
+                  <span className="settings-liquid-glass-layer liquid-glass-layer" aria-hidden="true" />
+                  <span className="left-liquid-glass-content">Сбросить</span>
+                </button>
+              </div>
             </div>
 
-            <SelectField label="Модель" value={skin.modelPreferenceId ?? 'auto'} options={(skin.modelOptions ?? []) as Array<Record<string, any>>} onChange={(value) => photinoBridge.sendCommand('skin.setModel', { modelId: value })} />
+            <div className="skin-control-row model-selection">
+              <strong>Модель игрока</strong>
+              <p>Выберите тип геометрии рук персонажа.</p>
+              
+              <div className={`skin-segmented-toggle left-liquid-glass-button settings-liquid-glass-button ${modelPreferenceId === 'classic' ? 'is-classic-active' : modelPreferenceId === 'slim' ? 'is-slim-active' : ''}`} role="group" aria-label="Модель">
+                <span className="settings-liquid-glass-layer liquid-glass-layer" aria-hidden="true" />
+                <button
+                  className={modelPreferenceId === 'auto' ? 'active' : ''}
+                  onClick={() => photinoBridge.sendCommand('skin.setModel', { modelId: 'auto' })}
+                  type="button"
+                >
+                  Авто
+                </button>
+                <button
+                  className={modelPreferenceId === 'classic' ? 'active' : ''}
+                  onClick={() => photinoBridge.sendCommand('skin.setModel', { modelId: 'classic' })}
+                  type="button"
+                >
+                  Классик
+                </button>
+                <button
+                  className={modelPreferenceId === 'slim' ? 'active' : ''}
+                  onClick={() => photinoBridge.sendCommand('skin.setModel', { modelId: 'slim' })}
+                  type="button"
+                >
+                  Слим
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </section>

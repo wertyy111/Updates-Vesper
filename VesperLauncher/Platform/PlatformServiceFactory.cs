@@ -56,7 +56,15 @@ public static class PlatformServiceFactory
                 SupportsOpenFolder: true,
                 SupportsOpenUrl: true),
 
-            PlatformKind.Linux or PlatformKind.MacOs => new PlatformFeatureSet(
+            PlatformKind.MacOs => new PlatformFeatureSet(
+                SupportsVesperNetService: false,
+                SupportsWindowsInstaller: false,
+                SupportsVelopackAutoUpdate: true,
+                SupportsNativeWindowShaping: false,
+                SupportsOpenFolder: true,
+                SupportsOpenUrl: true),
+
+            PlatformKind.Linux => new PlatformFeatureSet(
                 SupportsVesperNetService: false,
                 SupportsWindowsInstaller: false,
                 SupportsVelopackAutoUpdate: false,

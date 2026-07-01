@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,20 +38,20 @@ internal sealed class LauncherAutoUpdateService
     {
         if (!PlatformServiceFactory.CreateCurrent().Features.SupportsVelopackAutoUpdate)
         {
-            ReportReady("Автообновления лаунчера отключены для текущей платформы.");
+            ReportReady("Auto updates are disabled for this platform.");
             return true;
         }
 
         var config = LoadConfig();
         if (config is null || !config.Enabled || !config.CheckOnStartup)
         {
-            ReportReady("Обновления выключены. Запускаем лаунчер.");
+            ReportReady("Updates are disabled. Starting launcher.");
             return true;
         }
 
         try
         {
-            ReportStatus("Проверяем обновления...", "Подключаемся к источнику Velopack...");
+            ReportStatus("Checking for updates...", "Connecting to Velopack source...");
 
             using var checkTimeout = new CancellationTokenSource(BuildStartupDecisionTimeout(config));
             var manager = CreateUpdateManager(config);
@@ -58,7 +59,7 @@ internal sealed class LauncherAutoUpdateService
             if (!manager.IsInstalled)
             {
                 _logInfo("Velopack update skipped: app is not installed by Velopack.");
-                ReportReady("Лаунчер запущен не из установленной Velopack-сборки.");
+                ReportReady("Launcher is not running from an installed Velopack build.");
                 return true;
             }
 
@@ -70,7 +71,7 @@ internal sealed class LauncherAutoUpdateService
             var updateInfo = await manager.CheckForUpdatesAsync().WaitAsync(checkTimeout.Token).ConfigureAwait(false);
             if (updateInfo is null)
             {
-                ReportReady("Обновлений нет. Запускаем текущую версию.");
+                ReportReady("No updates found. Starting current version.");
                 return true;
             }
 
@@ -79,20 +80,20 @@ internal sealed class LauncherAutoUpdateService
 
             if (!config.InstallOnStartup)
             {
-                ReportReady($"Доступна версия {targetVersion}. Автоустановка выключена.");
+                ReportReady($"Version {targetVersion} is available. Auto-install is disabled.");
                 return true;
             }
 
             if (!HasEnoughFreeSpace(AppContext.BaseDirectory, MinimumPreferredFreeSpaceBytes, out var freeBytes))
             {
-                ReportReady("Недостаточно места для обновления. Запускаем текущую версию.");
+                ReportReady("Not enough free space for update. Starting current version.");
                 _logInfo($"Velopack update skipped: only {FormatBytes(freeBytes)} free.");
                 return true;
             }
 
             ReportStatus(
-                $"Найдена версия {targetVersion}.",
-                "Скачиваем безопасный пакет обновления...",
+                $"Found version {targetVersion}.",
+                "Downloading update package...",
                 0,
                 false,
                 "0%");
@@ -103,7 +104,7 @@ internal sealed class LauncherAutoUpdateService
                 await manager.DownloadUpdatesAsync(
                     updateInfo,
                     progress => ReportStatus(
-                        "Скачиваем обновление...",
+                        "Downloading update...",
                         $"{Math.Clamp(progress, 0, 100)}%",
                         progress,
                         false,
@@ -112,8 +113,8 @@ internal sealed class LauncherAutoUpdateService
             }
             catch (OperationCanceledException ex) when (downloadTimeout.IsCancellationRequested)
             {
-                _logError(ex, "Скачивание Velopack обновления превысило лимит времени");
-                ContinueWithCurrentVersion("Скачивание обновления заняло слишком много времени. Запускаем текущую версию.");
+                _logError(ex, "Velopack update download timed out.");
+                ContinueWithCurrentVersion("Downloading the update took too long. Starting current version.");
                 return true;
             }
 
@@ -121,14 +122,14 @@ internal sealed class LauncherAutoUpdateService
         }
         catch (OperationCanceledException ex)
         {
-            _logError(ex, "Проверка Velopack обновлений превысила лимит времени");
-            ContinueWithCurrentVersion("Сервер обновлений не ответил. Запускаем лаунчер.");
+            _logError(ex, "Velopack update check timed out.");
+            ContinueWithCurrentVersion("Update server did not respond. Starting launcher.");
             return true;
         }
         catch (Exception ex)
         {
-            _logError(ex, "Ошибка Velopack обновления");
-            ContinueWithCurrentVersion("Обновление временно недоступно. Запускаем лаунчер.");
+            _logError(ex, "Velopack update failed.");
+            ContinueWithCurrentVersion("Update is temporarily unavailable. Starting launcher.");
             return true;
         }
     }
@@ -137,22 +138,19 @@ internal sealed class LauncherAutoUpdateService
     {
         if (!config.InstallOnStartup)
         {
-            ReportReady($"Обновление {update.Version} готово, автоустановка выключена.");
+            ReportReady($"Update {update.Version} is ready, auto-install is disabled.");
             return true;
         }
 
         ReportStatus(
-            "Применяем обновление...",
-            "Лаунчер перезапустится после установки пакета.",
+            "Applying update...",
+            "Launcher will restart after package installation.",
             100,
             false,
-            "Установка...");
+            "Installing...");
         _logInfo($"Applying Velopack update {update.Version}.");
         manager.ApplyUpdatesAndRestart(update);
 
-        // Velopack starts a helper process, but old launcher builds could keep the
-        // Photino/WPF host alive long enough to block replacing the current folder.
-        // Exiting here makes the update atomic: install helper owns the restart.
         Environment.Exit(0);
         return false;
     }
@@ -170,7 +168,7 @@ internal sealed class LauncherAutoUpdateService
     {
         var options = new UpdateOptions
         {
-            ExplicitChannel = string.IsNullOrWhiteSpace(config.Channel) ? null : config.Channel.Trim(),
+            ExplicitChannel = ResolveUpdateChannel(config),
             AllowVersionDowngrade = false,
             MaximumDeltasBeforeFallback = Math.Max(0, config.MaximumDeltasBeforeFallback)
         };
@@ -189,7 +187,9 @@ internal sealed class LauncherAutoUpdateService
                 throw new InvalidOperationException("GitHub update source must be an HTTPS repository URL.");
             }
 
-            return new UpdateManager(new GithubSource(sourceUrl, accessToken: string.Empty, prerelease: config.IncludePrerelease), options);
+            return new UpdateManager(
+                new GithubSource(sourceUrl, accessToken: string.Empty, prerelease: config.IncludePrerelease),
+                options);
         }
 
         if (Uri.TryCreate(sourceUrl, UriKind.Absolute, out var uri) &&
@@ -202,9 +202,46 @@ internal sealed class LauncherAutoUpdateService
         return new UpdateManager(sourceUrl, options);
     }
 
+    private static string? ResolveUpdateChannel(LauncherUpdateConfig config)
+    {
+        if (!string.IsNullOrWhiteSpace(config.Channel))
+        {
+            return config.Channel.Trim();
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            return "win";
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            return RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+                ? "osx-arm64"
+                : "osx-x64";
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            return "linux-x64";
+        }
+
+        return null;
+    }
+
     private void ReportReady(string detail)
     {
-        ReportStatus("Запускаем лаунчер...", detail, 100, false, "Готово");
+        var displayDetail = detail switch
+        {
+            "Auto updates are disabled for this platform." => "Автообновление отключено для этой платформы.",
+            "Updates are disabled. Starting launcher." => "Обновления отключены. Запускаем лаунчер.",
+            "Launcher is not running from an installed Velopack build." => "Лаунчер запущен из сборки для разработки.",
+            "No updates found. Starting current version." => "Обновлений нет. Запускаем текущую версию.",
+            "Not enough free space for update. Starting current version." => "Недостаточно места для обновления. Запускаем текущую версию.",
+            _ => detail
+        };
+
+        ReportStatus("Запускаем лаунчер...", displayDetail, 100, false, "Готово");
         _logInfo(detail);
     }
 
@@ -322,4 +359,3 @@ internal sealed class LauncherAutoUpdateService
         public int MaximumDeltasBeforeFallback { get; init; } = 3;
     }
 }
-

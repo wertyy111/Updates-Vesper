@@ -35,6 +35,16 @@ public sealed class PlatformProcessService : IPlatformProcessService
         return OpenPathAsync(uri.AbsoluteUri, cancellationToken);
     }
 
+    public Task<bool> OpenFileAsync(string filePath, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return Task.FromResult(false);
+        }
+
+        return OpenPathAsync(filePath, cancellationToken);
+    }
+
     public Process StartProcess(ProcessStartInfo startInfo)
     {
         ArgumentNullException.ThrowIfNull(startInfo);
@@ -81,4 +91,3 @@ public sealed class PlatformProcessService : IPlatformProcessService
         return startInfo;
     }
 }
-

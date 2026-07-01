@@ -26,8 +26,9 @@ foreach ($candidate in $OutputPath) {
     }
 
     if ($isMatching) {
-      Write-Error "Close running Vesper Launcher before Release build. Locked file: $candidate"
-      exit 1
+      Write-Host "Automatically stopping running Vesper Launcher process (PID: $($proc.Id)) to unlock: $candidate"
+      Stop-Process -Id $proc.Id -Force
+      Start-Sleep -Seconds 1
     }
   }
 }

@@ -1,14 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Net.Http;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Net.Http;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -26,7 +16,7 @@ namespace VesperLauncher.Launcher;
 
 /// <summary>
 /// Authenticates a player via Microsoft Account (OAuth 2.0 Device Code Flow)
-/// and then exchanges the token through Xbox Live → XSTS → Minecraft.
+/// and then exchanges the token through Xbox Live > XSTS > Minecraft.
 /// </summary>
 public sealed class MicrosoftAuthService
 {
@@ -40,9 +30,9 @@ public sealed class MicrosoftAuthService
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(5) };
 
-    // ──────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------
     // Public API
-    // ──────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------
 
     /// <summary>
     /// Tries to load a cached session and refresh it silently.
@@ -86,9 +76,9 @@ public sealed class MicrosoftAuthService
         return (session, () => { try { cts.Cancel(); } catch { /**/ } });
     }
 
-    // ──────────────────────────────────────────────────────────────────
-    // Step 1 – Microsoft Device Code
-    // ──────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------
+    // Step 1 � Microsoft Device Code
+    // ------------------------------------------------------------------
 
     private static async Task<DeviceCodeInfo> RequestDeviceCodeAsync(CancellationToken ct)
     {
@@ -113,9 +103,9 @@ public sealed class MicrosoftAuthService
             root.GetProperty("expires_in").GetInt32());
     }
 
-    // ──────────────────────────────────────────────────────────────────
-    // Step 2 – Poll for MSA token
-    // ──────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------
+    // Step 2 � Poll for MSA token
+    // ------------------------------------------------------------------
 
     private static async Task<MsaTokenResponse> PollForMsaTokenAsync(DeviceCodeInfo deviceCode, CancellationToken ct)
     {
@@ -144,7 +134,7 @@ public sealed class MicrosoftAuthService
             {
                 var error = errorElement.GetString();
                 if (error == "authorization_pending" || error == "slow_down") continue;
-                throw new InvalidOperationException($"Ошибка авторизации Microsoft: {error}");
+                throw new InvalidOperationException($"������ ����������� Microsoft: {error}");
             }
 
             return new MsaTokenResponse(
@@ -152,12 +142,12 @@ public sealed class MicrosoftAuthService
                 root.TryGetProperty("refresh_token", out var rt) ? rt.GetString() : null);
         }
 
-        throw new TimeoutException("Время ожидания авторизации Microsoft истекло.");
+        throw new TimeoutException("����� �������� ����������� Microsoft �������.");
     }
 
-    // ──────────────────────────────────────────────────────────────────
-    // Step 3 – Refresh MSA token
-    // ──────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------
+    // Step 3 � Refresh MSA token
+    // ------------------------------------------------------------------
 
     private static async Task<MsaTokenResponse> RefreshMsaTokenAsync(string refreshToken, CancellationToken ct)
     {
@@ -180,9 +170,9 @@ public sealed class MicrosoftAuthService
             root.TryGetProperty("refresh_token", out var rt) ? rt.GetString() : null);
     }
 
-    // ──────────────────────────────────────────────────────────────────
-    // Step 4 – MSA → Xbox Live → XSTS → Minecraft
-    // ──────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------
+    // Step 4 � MSA > Xbox Live > XSTS > Minecraft
+    // ------------------------------------------------------------------
 
     private static async Task<MicrosoftSession> ExchangeForMinecraftSessionAsync(string msaAccessToken, CancellationToken ct)
     {
@@ -244,10 +234,10 @@ public sealed class MicrosoftAuthService
             var xerr = doc.RootElement.TryGetProperty("XErr", out var e) ? e.GetInt64() : 0;
             var msg = xerr switch
             {
-                2148916233 => "У этого Microsoft-аккаунта нет привязанного аккаунта Xbox. Войдите на xbox.com и создайте его.",
-                2148916235 => "Xbox заблокирован в вашей стране.",
-                2148916238 => "Аккаунт является детским. Требуется разрешение родителя.",
-                _ => $"Ошибка XSTS (XErr={xerr})."
+                2148916233 => "� ����� Microsoft-�������� ��� ������������ �������� Xbox. ������� �� xbox.com � �������� ���.",
+                2148916235 => "Xbox ������������ � ����� ������.",
+                2148916238 => "������� �������� �������. ��������� ���������� ��������.",
+                _ => $"������ XSTS (XErr={xerr})."
             };
             throw new InvalidOperationException(msg);
         }
@@ -284,7 +274,7 @@ public sealed class MicrosoftAuthService
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException("У этого аккаунта нет купленного Minecraft Java Edition.");
+            throw new InvalidOperationException("� ����� �������� ��� ���������� Minecraft Java Edition.");
         }
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
@@ -297,9 +287,9 @@ public sealed class MicrosoftAuthService
         return (uuid, username);
     }
 
-    // ──────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------
     // Token cache
-    // ──────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------
 
     private static byte[] GetUnixFallbackKey()
     {
@@ -425,9 +415,9 @@ public sealed class MicrosoftAuthService
     }
 }
 
-// ──────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------
 // Data models
-// ──────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------
 
 public sealed record MicrosoftSession(string Uuid, string Username, string AccessToken);
 

@@ -26,6 +26,7 @@ public enum ModLoaderKind
 {
     Forge,
     Fabric,
+    NeoForge,
     OptiFine
 }
 
@@ -76,7 +77,9 @@ public sealed record RecommendedModCatalogItem(
     string? ResolvedFileName = null,
     string? ResolvedDownloadUrl = null,
     string? ResolvedFileSha1 = null,
-    IReadOnlyList<string>? RequiredDependencyProjectIds = null);
+    IReadOnlyList<string>? RequiredDependencyProjectIds = null,
+    long Downloads = 0,
+    long Followers = 0);
 
 public sealed record InstalledModProjectInfo(
     string ProjectId,

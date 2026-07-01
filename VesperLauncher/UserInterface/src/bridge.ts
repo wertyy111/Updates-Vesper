@@ -37,6 +37,10 @@ class PhotinoBridge {
   sendCommand(command: string, payload: Record<string, unknown> = {}) {
     this.ensureInitialized();
     const message = JSON.stringify({ type: 'command', command, payload });
+    if (this.sendNativeWindowCommand(command, message)) {
+      return;
+    }
+
     void this.sendMessageToHost(message);
   }
 
@@ -69,6 +73,20 @@ class PhotinoBridge {
     }
 
     window.external?.sendMessage?.(message);
+  }
+
+  private sendNativeWindowCommand(command: string, message: string) {
+    const normalizedCommand = command.trim().toLowerCase();
+    if (normalizedCommand !== 'host.startdrag' && normalizedCommand !== 'host.startresize') {
+      return false;
+    }
+
+    if (!window.external?.sendMessage) {
+      return false;
+    }
+
+    window.external.sendMessage(message);
+    return true;
   }
 
   private async trySendHttpBridgeMessage(message: string) {

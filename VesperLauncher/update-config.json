@@ -5,7 +5,7 @@
   "SourceType": "GitHub",
   "SourceUrl": "https://github.com/wertyy111/Updates-Vesper",
   "Channel": "",
-  "IncludePrerelease": false,
+  "IncludePrerelease": true,
   "StartupDecisionTimeoutSeconds": 15,
   "DownloadTimeoutSeconds": 600,
   "MaximumDeltasBeforeFallback": 3

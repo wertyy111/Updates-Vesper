@@ -28,6 +28,22 @@ const getRangeStyle = (value: number, min: number, max: number) => ({
   '--range-progress': `${((value - min) / Math.max(max - min, 1)) * 100}%`
 }) as CSSProperties;
 
+function SettingsYesNoToggle({ label, hint, checked, field }: { label: string; hint: string; checked: boolean; field: string }) {
+  return (
+    <div className="settings-toggle-row">
+      <div>
+        <strong>{label}</strong>
+        <p>{hint}</p>
+      </div>
+      <div className={`settings-segmented-toggle left-liquid-glass-button settings-liquid-glass-button ${checked ? 'is-left-active' : 'is-right-active'}`} role="group" aria-label={label}>
+        <span className="settings-liquid-glass-layer liquid-glass-layer" aria-hidden="true" />
+        <button className={checked ? 'active' : ''} onClick={() => photinoBridge.sendCommand('settings.setToggle', { field, value: true })} type="button">Да</button>
+        <button className={!checked ? 'active' : ''} onClick={() => photinoBridge.sendCommand('settings.setToggle', { field, value: false })} type="button">Нет</button>
+      </div>
+    </div>
+  );
+}
+
 export function SettingsPanel({ launcher, javaPathDraft, setJavaPathDraft, setJavaPathDirty, jvmArgsDraft, setJvmArgsDraft, setJvmArgsDirty, glassTuning, setGlassTuningValue }: PanelRenderProps) {
   const settings = launcher.settings;
   const activeTab = settings.activeTab ?? 'launcher';
@@ -107,13 +123,14 @@ export function SettingsPanel({ launcher, javaPathDraft, setJavaPathDraft, setJa
             <h3 className="settings-page-title">Java</h3>
             <div className="settings-toggle-row">
               <div>
-                <strong>Использовать системную Java</strong>
+                <strong>Использовать Java</strong>
                 <p>{settings.javaModeHint}</p>
               </div>
-              <div className={`settings-segmented-toggle left-liquid-glass-button settings-liquid-glass-button ${settings.useSystemJava ? 'is-left-active' : 'is-right-active'}`} role="group" aria-label="Режим Java">
+              <div className={`settings-segmented-toggle java-toggle left-liquid-glass-button settings-liquid-glass-button ${settings.javaRuntimeMode === 'auto' ? 'is-left-active' : (settings.javaRuntimeMode === 'system' ? 'is-middle-active' : 'is-right-active')}`} role="group" aria-label="Режим Java">
                 <span className="settings-liquid-glass-layer liquid-glass-layer" aria-hidden="true" />
-                <button className={settings.useSystemJava ? 'active' : ''} onClick={() => photinoBridge.sendCommand('settings.setToggle', { field: 'useSystemJava', value: true })} type="button">Система</button>
-                <button className={!settings.useSystemJava ? 'active' : ''} onClick={() => photinoBridge.sendCommand('settings.setToggle', { field: 'useSystemJava', value: false })} type="button">Свой</button>
+                <button className={settings.javaRuntimeMode === 'auto' ? 'active' : ''} onClick={() => photinoBridge.sendCommand('settings.setOption', { field: 'javaRuntimeMode', value: 'auto' })} type="button">Авто</button>
+                <button className={settings.javaRuntimeMode === 'system' ? 'active' : ''} onClick={() => photinoBridge.sendCommand('settings.setOption', { field: 'javaRuntimeMode', value: 'system' })} type="button">Система</button>
+                <button className={settings.javaRuntimeMode === 'custom' ? 'active' : ''} onClick={() => photinoBridge.sendCommand('settings.setOption', { field: 'javaRuntimeMode', value: 'custom' })} type="button">Свой</button>
               </div>
             </div>
             <label className="field-label">
@@ -142,6 +159,24 @@ export function SettingsPanel({ launcher, javaPathDraft, setJavaPathDraft, setJa
 
           <div className={pageClass('launch')} aria-hidden={isPageHidden('launch')}>
             <h3 className="settings-page-title">Запуск</h3>
+            <SettingsYesNoToggle
+              label="Snapshot-версии Minecraft"
+              hint="Показывать экспериментальные сборки Mojang. Loader-варианты для них не подбираются."
+              checked={Boolean(settings.showSnapshotVersions)}
+              field="showSnapshotVersions"
+            />
+            <SettingsYesNoToggle
+              label="Beta-версии Minecraft"
+              hint="Показывать старые beta-версии. Включайте только если они реально нужны."
+              checked={Boolean(settings.showBetaVersions)}
+              field="showBetaVersions"
+            />
+            <SettingsYesNoToggle
+              label="Alpha-версии Minecraft"
+              hint="Показывать старые alpha-версии. Они могут требовать отдельной подготовки Java."
+              checked={Boolean(settings.showAlphaVersions)}
+              field="showAlphaVersions"
+            />
             <ToggleCard label="Авто память" hint={settings.autoMemoryHint} checked={isAutoMemoryEnabled} onChange={(value) => photinoBridge.sendCommand('settings.setToggle', { field: 'autoOptimizeMemory', value })} />
             <label className="field-label">
               Память: {memoryLabelMb} MB
