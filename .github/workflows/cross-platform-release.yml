@@ -35,7 +35,7 @@ env:
 jobs:
   linux-appimage:
     name: Linux AppImage
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - name: Checkout
@@ -51,7 +51,70 @@ jobs:
         with:
           node-version: "24"
           cache: "npm"
-          cache-dependency-path: "VesperLauncher/UserInterface/package-lock.json"
+          cache-dependency-path: "MinecraftCheatLauncher/UserInterface/package-lock.json"
+
+      - name: Install AppImage build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 desktop-file-utils
+
+      - name: Publish Linux shell
+        shell: pwsh
+        run: |
+name: Cross-platform release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "GitHub release tag to upload assets into"
+        required: true
+        default: "beta-1.0"
+      version:
+        description: "Artifact version label"
+        required: true
+        default: "beta-1.0"
+      upload_release:
+        description: "Upload AppImage/DMG assets to the GitHub Release"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+  push:
+    tags:
+      - "beta-*"
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  VESPER_VERSION: ${{ github.event.inputs.version || github.ref_name }}
+
+jobs:
+  linux-appimage:
+    name: Linux AppImage
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: "MinecraftCheatLauncher/UserInterface/package-lock.json"
 
       - name: Install AppImage build dependencies
         run: |
@@ -104,9 +167,7 @@ jobs:
           Terminal=false
           EOF
           
-          # The project directory is MinecraftCheatLauncher currently, wait... no, the directory name is MinecraftCheatLauncher! But in the file it says VesperLauncher?
-          # Wait, look at line 75: -i "VesperLauncher/Assets/vesper-logo.png". I'll use the same path!
-          cp "MinecraftCheatLauncher/Assets/vesper-logo.png" "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps/vesper-launcher.png" || cp "VesperLauncher/Assets/vesper-logo.png" "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps/vesper-launcher.png"
+          cp "VesperLauncher/Assets/vesper-logo.png" "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps/vesper-launcher.png"
           
           chmod -R 755 "${DEB_DIR}/DEBIAN"
           chmod -R 755 "${DEB_DIR}/opt/vesper-launcher"
@@ -125,6 +186,7 @@ jobs:
             _build_verify/release-artifacts/*.nupkg
             _build_verify/release-artifacts/releases.*.json
           if-no-files-found: error
+          retention-days: 3
 
   macos-dmg:
     name: macOS DMG (${{ matrix.rid }})
@@ -150,7 +212,7 @@ jobs:
         with:
           node-version: "24"
           cache: "npm"
-          cache-dependency-path: "VesperLauncher/UserInterface/package-lock.json"
+          cache-dependency-path: "MinecraftCheatLauncher/UserInterface/package-lock.json"
 
       - name: Import Apple Developer ID certificate
         env:
@@ -230,6 +292,7 @@ jobs:
             _build_verify/release-artifacts/*.nupkg
             _build_verify/release-artifacts/releases.*.json
           if-no-files-found: error
+          retention-days: 3
 
   windows-setup:
     name: Windows Setup
@@ -255,8 +318,13 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/Publish-VelopackUpdate.ps1 `
+            -ProjectPath "VesperLauncher/VesperLauncher.csproj" `
             -Version "${{ github.event.inputs.version || github.ref_name }}" `
             -SkipPreviousDownload
+          mkdir -p _build_verify/release-artifacts
+          cp _build_verify/velopack/*/Releases/*.exe _build_verify/release-artifacts/ || true
+          cp _build_verify/velopack/*/Releases/*.nupkg _build_verify/release-artifacts/ || true
+          cp _build_verify/velopack/*/Releases/releases.*.json _build_verify/release-artifacts/ || true
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -267,6 +335,7 @@ jobs:
             _build_verify/release-artifacts/*.nupkg
             _build_verify/release-artifacts/releases.*.json
           if-no-files-found: error
+          retention-days: 3
 
   upload-release:
     name: Upload release assets
@@ -299,7 +368,7 @@ jobs:
             dist/*.exe
             dist/releases.*.json
           fail_on_unmatched_files: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.VPK_TOKEN }}
 
 
 
