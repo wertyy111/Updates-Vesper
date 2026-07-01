@@ -1,0 +1,79 @@
+name: Build Vesper DMG
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag with macOS app tar.gz assets"
+        required: true
+        default: "dmg-build-1.0.60-beta.1"
+      version:
+        description: "Vesper Launcher version"
+        required: true
+        default: "1.0.60-beta.1"
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  build-dmg:
+    name: Build DMG (${{ matrix.rid }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid:
+          - osx-x64
+          - osx-arm64
+
+    steps:
+      - name: Download app bundle archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work
+          gh release download "${{ inputs.release_tag }}" \
+            --repo "${{ github.repository }}" \
+            --pattern "VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}-app.tar.gz" \
+            --dir work
+
+      - name: Build DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="work/VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}-app.tar.gz"
+          extract_dir="work/extracted-${{ matrix.rid }}"
+          dmg_root="work/dmg-root-${{ matrix.rid }}"
+          dmg_path="VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}.dmg"
+
+          mkdir -p "$extract_dir" "$dmg_root"
+          tar -xzf "$archive" -C "$extract_dir"
+          cp -R "$extract_dir/Vesper Launcher.app" "$dmg_root/"
+          chmod +x "$dmg_root/Vesper Launcher.app/Contents/MacOS/VesperLauncher"
+          ln -s /Applications "$dmg_root/Applications"
+
+          hdiutil create \
+            -volname "Vesper Launcher" \
+            -srcfolder "$dmg_root" \
+            -ov \
+            -format UDZO \
+            "$dmg_path"
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}-dmg
+          path: VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}.dmg
+          if-no-files-found: error
+
+      - name: Upload DMG to release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "${{ inputs.release_tag }}" \
+            --repo "${{ github.repository }}" \
+            --clobber \
+            "VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}.dmg"
