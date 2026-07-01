@@ -8,7 +8,7 @@
     <StartupObject>VesperLauncher.Program</StartupObject>
     <AssemblyName>VesperLauncher</AssemblyName>
     <RootNamespace>VesperLauncher</RootNamespace>
-    <Version>1.0.59-beta.1</Version>
+    <Version>1.0.60-beta.1</Version>
     <Company>Vesper Launcher</Company>
     <Product>Vesper Launcher</Product>
     <Title>Vesper Launcher</Title>
@@ -21,28 +21,43 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="LZMA-SDK" Version="22.1.1" />
+    <PackageReference Include="Lzma.Net" Version="5.8.3.2" />
+    <PackageReference Include="Open.NAT" Version="2.1.0" />
     <PackageReference Include="Photino.NET" Version="4.0.16" />
+    <PackageReference Include="SevenZipExtractor" Version="1.0.19" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageReference Include="Squid-Box.SevenZipSharp" Version="1.6.2.24" />
     <PackageReference Include="Velopack" Version="1.2.0" />
     
   </ItemGroup>
 
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="LauncherAutoUpdateService.cs" />
+    <Compile Include="LauncherUpdateUiState.cs" />
     <Compile Include="Core\AppDiagnostics.cs" />
     <Compile Include="Core\AccountFriendsService.cs" />
+    <Compile Include="Core\MinecraftVersionManifestService.cs" />
     <Compile Include="Core\DependencyContainer.cs" />
     <Compile Include="Core\EventManager.cs" />
     <Compile Include="Core\Logger.cs" />
     <Compile Include="Launcher\JavaDetector.cs" />
     <Compile Include="Launcher\JvmArgBuilder.cs" />
     <Compile Include="Launcher\LauncherModels.cs" />
+    <Compile Include="Launcher\MinecraftLauncherService.cs" />
     <Compile Include="Launcher\MicrosoftAuthService.cs" />
     <Compile Include="Launcher\ProcessMonitor.cs" />
     <Compile Include="Launcher\VersionStateMachine.cs" />
+    <Compile Include="Launcher\VesperAuthHttpServer.cs" />
+    <Compile Include="Launcher\VesperFriendRelay.cs" />
+    <Compile Include="Launcher\VesperSkinRegistry.cs" />
+    <Compile Include="Launcher\LzmaHelper.cs" />
     <Compile Include="PhotinoHost\ILauncherBackendHost.cs" />
     <Compile Include="PhotinoHost\LauncherBackendHostFactory.cs" />
     <Compile Include="PhotinoHost\LauncherFallbackBackendHost.cs" />
     <Compile Include="PhotinoHost\LocalStaticFileServer.cs" />
+    <Compile Include="PhotinoShell\*.cs" />
     <Compile Include="PhotinoState\*.cs" />
     <Compile Include="Platform\*.cs" />
     <Compile Include="Utils\PathHelper.cs" />
@@ -99,6 +114,12 @@
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </Content>
     </ItemGroup>
+  </Target>
+
+  <Target Name="CleanPhotinoFrontendDistOutput"
+          BeforeTargets="_CopyOutOfDateSourceItemsToOutputDirectory"
+          Condition="Exists('$(TargetDir)UserInterface\dist')">
+    <RemoveDir Directories="$(TargetDir)UserInterface\dist" />
   </Target>
 
 </Project>

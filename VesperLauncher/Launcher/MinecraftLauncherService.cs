@@ -27,6 +27,7 @@ namespace VesperLauncher.Launcher;
 
 public sealed class MinecraftLauncherService
 {
+    public string GetBaseStorageDirectory() => BaseStorageDirectory.Value;
     private const string VersionManifestUrl = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
     private const string BmclApiBaseUrl = "https://bmclapi2.bangbang93.com";
     private const string BmclApiVersionManifestUrl = BmclApiBaseUrl + "/mc/game/version_manifest_v2.json";
@@ -39,6 +40,8 @@ public sealed class MinecraftLauncherService
     private const string ForgeMavenBaseUrl = "https://maven.minecraftforge.net/";
     private const string ForgeInstallerHeadlessReleaseApiUrl = "https://api.github.com/repos/xfl03/ForgeInstallerHeadless/releases/latest";
     private const string ForgePromotionsUrl = "https://files.minecraftforge.net/maven/net/minecraftforge/forge/promotions_slim.json";
+    private const string NeoForgeMetadataUrl = "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
+    private const string NeoForgeInstallerMavenUrlTemplate = "https://maven.neoforged.net/releases/net/neoforged/neoforge/{0}/neoforge-{0}-installer.jar";
     private const string CurseForgeCdnDownloadUrlTemplate = "https://mediafilez.forgecdn.net/files/{0}/{1}/{2}";
     private const string ModrinthProjectUrlTemplate = "https://api.modrinth.com/v2/project/{0}";
     private const string ModrinthProjectVersionsUrlTemplate = "https://api.modrinth.com/v2/project/{0}/version?loaders={1}&game_versions={2}";
@@ -50,7 +53,6 @@ public sealed class MinecraftLauncherService
     private const string AuthlibInjectorReleaseApiUrl = "https://api.github.com/repos/yushijinhun/authlib-injector/releases/latest";
     private const string ElyPrismMetadataUrl = "https://raw.githubusercontent.com/ElyPrismLauncher/ElyPrismLauncher/develop/epl_metadata.json";
     private const string MineSkinGenerateUrl = "https://api.mineskin.org/v2/generate";
-    private const int MaxManifestReleaseVersions = 80;
     private const int ModrinthCatalogSearchLimit = 100;
     private const int VersionFileDownloadConcurrency = 10;
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(10) };
@@ -314,12 +316,11 @@ public sealed class MinecraftLauncherService
             {
                 using var manifest = await GetJsonDocumentWithUserAgentAsync(VersionManifestUrl, cancellationToken);
 
-                var addedReleaseVersions = 0;
-                var manifestVersions = new List<MinecraftVersionEntry>(MaxManifestReleaseVersions);
+                var manifestVersions = new List<MinecraftVersionEntry>();
                 foreach (var versionElement in manifest.RootElement.GetProperty("versions").EnumerateArray())
                 {
                     var type = versionElement.GetProperty("type").GetString() ?? "release";
-                    if (!type.Equals("release", StringComparison.OrdinalIgnoreCase))
+                    if (!string.Equals(type, "release", StringComparison.OrdinalIgnoreCase))
                     {
                         continue;
                     }
@@ -348,12 +349,6 @@ public sealed class MinecraftLauncherService
                     {
                         versionsById[id] = manifestEntry;
                     }
-
-                    addedReleaseVersions++;
-                    if (addedReleaseVersions >= MaxManifestReleaseVersions)
-                    {
-                        break;
-                    }
                 }
 
                 if (manifestVersions.Count > 0)
@@ -373,6 +368,7 @@ public sealed class MinecraftLauncherService
         }
 
         return versionsById.Values
+            .Where(version => string.Equals(version.Type, "release", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(version => version.ReleaseTime)
             .ToArray();
     }
@@ -687,10 +683,16 @@ public sealed class MinecraftLauncherService
                 return;
             }
 
-            var requiredMb = Math.Ceiling(minimumFreeBytes / 1024d / 1024d);
-            var availableMb = Math.Floor(drive.AvailableFreeSpace / 1024d / 1024d);
-            throw new IOException(
-                $"Недостаточно свободного места для {purpose}. Диск {drive.Name}: доступно {availableMb:0} MB, нужно хотя бы {requiredMb:0} MB.");
+            // Only throw an exception if the space is critically low (less than 32 MB).
+            // This prevents crashes on systems with limited space where Java temporary/runtime directories have enough space to work but don't meet the original 512MB/768MB requirements.
+            long criticalThreshold = 32L * 1024 * 1024;
+            if (drive.AvailableFreeSpace < criticalThreshold)
+            {
+                var requiredMb = Math.Ceiling(criticalThreshold / 1024d / 1024d);
+                var availableMb = Math.Floor(drive.AvailableFreeSpace / 1024d / 1024d);
+                throw new IOException(
+                    $"Недостаточно свободного места для {purpose}. Диск {drive.Name}: доступно {availableMb:0} MB, нужно хотя бы {requiredMb:0} MB.");
+            }
         }
         catch (IOException)
         {
@@ -726,9 +728,52 @@ public sealed class MinecraftLauncherService
         {
             ModLoaderKind.Forge => await FetchForgeVersionsAsync(normalizedMinecraftVersionId, cancellationToken),
             ModLoaderKind.Fabric => await FetchFabricVersionsAsync(normalizedMinecraftVersionId, cancellationToken),
+            ModLoaderKind.NeoForge => await FetchNeoForgeVersionsAsync(normalizedMinecraftVersionId, cancellationToken),
             ModLoaderKind.OptiFine => await FetchOptiFineVersionsAsync(normalizedMinecraftVersionId, cancellationToken),
             _ => []
         };
+    }
+
+    public async Task<string> InstallVanillaVersionAsync(
+        string minecraftVersionId,
+        LauncherProfile profile = LauncherProfile.Vanilla,
+        IProgress<LauncherProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedMinecraftVersionId = NormalizeMinecraftBaseVersionId(minecraftVersionId);
+        var gameDirectory = GetGameDirectory(profile);
+        Directory.CreateDirectory(gameDirectory);
+        EnsureProfileDirectories(gameDirectory, profile);
+
+        await EnsureBaseVersionReadyAsync(normalizedMinecraftVersionId, gameDirectory, cancellationToken, progress);
+        return normalizedMinecraftVersionId;
+    }
+
+    public async Task<ModLoaderInstallResult> InstallNeoForgeVersionAsync(
+        string minecraftVersionId,
+        string neoForgeVersionId,
+        LauncherProfile profile = LauncherProfile.Vanilla,
+        IProgress<LauncherProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedMinecraftVersionId = NormalizeMinecraftBaseVersionId(minecraftVersionId);
+        if (string.IsNullOrWhiteSpace(neoForgeVersionId))
+        {
+            throw new ArgumentException("NeoForge version is not specified.", nameof(neoForgeVersionId));
+        }
+
+        var gameDirectory = GetGameDirectory(profile);
+        Directory.CreateDirectory(gameDirectory);
+        EnsureProfileDirectories(gameDirectory, profile);
+
+        await EnsureBaseVersionReadyAsync(normalizedMinecraftVersionId, gameDirectory, cancellationToken, progress);
+
+        return await InstallNeoForgeAsync(
+            normalizedMinecraftVersionId,
+            neoForgeVersionId,
+            gameDirectory,
+            progress,
+            cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<ModLoaderInstallResult> InstallModLoaderAsync(
@@ -749,7 +794,7 @@ public sealed class MinecraftLauncherService
         Directory.CreateDirectory(gameDirectory);
         EnsureProfileDirectories(gameDirectory, profile);
 
-        await EnsureBaseVersionReadyAsync(normalizedMinecraftVersionId, gameDirectory, cancellationToken);
+        await EnsureBaseVersionReadyAsync(normalizedMinecraftVersionId, gameDirectory, cancellationToken, progress);
 
         return loaderKind switch
         {
@@ -760,6 +805,12 @@ public sealed class MinecraftLauncherService
                 progress,
                 cancellationToken),
             ModLoaderKind.Fabric => await InstallFabricAsync(
+                normalizedMinecraftVersionId,
+                loaderVersionId,
+                gameDirectory,
+                progress,
+                cancellationToken),
+            ModLoaderKind.NeoForge => await InstallNeoForgeAsync(
                 normalizedMinecraftVersionId,
                 loaderVersionId,
                 gameDirectory,
@@ -842,6 +893,38 @@ public sealed class MinecraftLauncherService
         }
 
         DeleteMatchingModFiles(modsDirectory, IsOptiFineModFileName);
+    }
+
+    public bool HasInstalledOptiFineMod(
+        string installedVersionId,
+        LauncherProfile profile = LauncherProfile.Vanilla)
+    {
+        if (string.IsNullOrWhiteSpace(installedVersionId))
+        {
+            return false;
+        }
+
+        var instanceDirectory = GetVersionInstanceDirectory(profile, installedVersionId.Trim());
+        var modsDirectory = Path.Combine(instanceDirectory, "mods");
+        return Directory.Exists(modsDirectory) &&
+               Directory.EnumerateFiles(modsDirectory, "*.jar", SearchOption.TopDirectoryOnly)
+                   .Any(IsOptiFineModFileName);
+    }
+
+    public bool HasInstalledOptiFabricMod(
+        string installedVersionId,
+        LauncherProfile profile = LauncherProfile.Vanilla)
+    {
+        if (string.IsNullOrWhiteSpace(installedVersionId))
+        {
+            return false;
+        }
+
+        var instanceDirectory = GetVersionInstanceDirectory(profile, installedVersionId.Trim());
+        var modsDirectory = Path.Combine(instanceDirectory, "mods");
+        return Directory.Exists(modsDirectory) &&
+               Directory.EnumerateFiles(modsDirectory, "*.jar", SearchOption.TopDirectoryOnly)
+                   .Any(IsOptiFabricModFileName);
     }
 
     public async Task<ModLoaderVersionEntry?> GetCompatibleFabricLoaderVersionForOptiFineAsync(
@@ -1357,7 +1440,9 @@ public sealed class MinecraftLauncherService
                         ResolvedFileName: resolvedProject.FileName,
                         ResolvedDownloadUrl: resolvedProject.DownloadUrl,
                         ResolvedFileSha1: resolvedProject.FileSha1,
-                        RequiredDependencyProjectIds: resolvedProject.RequiredDependencyProjectIds));
+                        RequiredDependencyProjectIds: resolvedProject.RequiredDependencyProjectIds,
+                        Downloads: metadata?.Downloads ?? 0,
+                        Followers: metadata?.Followers ?? 0));
                     continue;
                 }
                 catch
@@ -1387,7 +1472,9 @@ public sealed class MinecraftLauncherService
                 !string.IsNullOrWhiteSpace(metadata?.Description) ? metadata.Description! : firstEntry.Description,
                 metadata?.IconUrl,
                 categorySummary,
-                RecommendedCatalogContentKind.Mod));
+                RecommendedCatalogContentKind.Mod,
+                Downloads: metadata?.Downloads ?? 0,
+                Followers: metadata?.Followers ?? 0));
         }
 
         return result
@@ -1466,6 +1553,13 @@ public sealed class MinecraftLauncherService
                 ? iconUrlElement.GetString()
                 : null;
 
+            var downloads = hit.TryGetProperty("downloads", out var downloadsEl) && (downloadsEl.ValueKind == JsonValueKind.Number || downloadsEl.ValueKind == JsonValueKind.String)
+                ? (downloadsEl.ValueKind == JsonValueKind.Number ? downloadsEl.GetInt64() : (long.TryParse(downloadsEl.GetString(), out var valD) ? valD : 0))
+                : 0;
+            var followers = hit.TryGetProperty("follows", out var followsEl) && (followsEl.ValueKind == JsonValueKind.Number || followsEl.ValueKind == JsonValueKind.String)
+                ? (followsEl.ValueKind == JsonValueKind.Number ? followsEl.GetInt64() : (long.TryParse(followsEl.GetString(), out var valF) ? valF : 0))
+                : 0;
+
             result.Add(new RecommendedModCatalogItem(
                 projectId,
                 displayName ?? projectId,
@@ -1475,7 +1569,9 @@ public sealed class MinecraftLauncherService
                 string.IsNullOrWhiteSpace(iconUrl) ? null : iconUrl,
                 BuildModrinthCategorySummary(hit),
                 contentKind,
-                contentKind == RecommendedCatalogContentKind.Modpack ? "Скачать" : "Установить"));
+                contentKind == RecommendedCatalogContentKind.Modpack ? "Скачать" : "Установить",
+                Downloads: downloads,
+                Followers: followers));
         }
 
         return result;
@@ -2148,12 +2244,21 @@ public sealed class MinecraftLauncherService
             ? iconUrlElement.GetString()
             : null;
 
+        var downloads = root.TryGetProperty("downloads", out var downloadsEl) && downloadsEl.ValueKind == JsonValueKind.Number
+            ? downloadsEl.GetInt64()
+            : 0;
+        var followers = root.TryGetProperty("followers", out var followersEl) && followersEl.ValueKind == JsonValueKind.Number
+            ? followersEl.GetInt64()
+            : 0;
+
         var metadata = new ModrinthProjectMetadata(
             projectId,
             slug ?? projectLookupId,
             string.IsNullOrWhiteSpace(title) ? projectLookupId : title,
             description,
-            iconUrl);
+            iconUrl,
+            downloads,
+            followers);
 
         metadataCache[projectLookupId] = metadata;
         metadataCache[metadata.ProjectId] = metadata;
@@ -3447,6 +3552,81 @@ public sealed class MinecraftLauncherService
             .ToArray();
     }
 
+    private static async Task<IReadOnlyList<ModLoaderVersionEntry>> FetchNeoForgeVersionsAsync(
+        string minecraftVersionId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(minecraftVersionId))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, NeoForgeMetadataUrl);
+            request.Headers.UserAgent.ParseAdd("VesperLauncher/1.0");
+            using var response = await Http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+
+            var metadata = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var versions = Regex.Matches(metadata, "<version>(?<version>[^<]+)</version>", RegexOptions.IgnoreCase)
+                .Select(match => match.Groups["version"].Value.Trim())
+                .Where(version => IsNeoForgeVersionCompatibleWithMinecraft(version, minecraftVersionId))
+                .Reverse()
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(20)
+                .Select((version, index) => new ModLoaderVersionEntry(
+                    version,
+                    $"NeoForge {version}",
+                    DateTimeOffset.UtcNow - TimeSpan.FromSeconds(index)))
+                .ToArray();
+
+            return versions;
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static bool IsNeoForgeVersionCompatibleWithMinecraft(string neoForgeVersion, string minecraftVersionId)
+    {
+        if (string.IsNullOrWhiteSpace(neoForgeVersion) || string.IsNullOrWhiteSpace(minecraftVersionId))
+        {
+            return false;
+        }
+
+        var normalizedMinecraftVersion = NormalizeMinecraftBaseVersionId(minecraftVersionId);
+        var minecraftParts = normalizedMinecraftVersion.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var neoForgeParts = neoForgeVersion.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (minecraftParts.Length < 2 || neoForgeParts.Length < 2)
+        {
+            return false;
+        }
+
+        if (minecraftParts[0] != "1" || !int.TryParse(minecraftParts[1], out var minecraftMinor))
+        {
+            return false;
+        }
+
+        if (!int.TryParse(neoForgeParts[0], out var neoForgeMajor) ||
+            !int.TryParse(neoForgeParts[1], out var neoForgeMinor))
+        {
+            return false;
+        }
+
+        var minecraftPatch = minecraftParts.Length > 2 && int.TryParse(minecraftParts[2], out var parsedPatch)
+            ? parsedPatch
+            : 0;
+
+        if (normalizedMinecraftVersion == "1.20.1")
+        {
+            return neoForgeMajor == 47 && neoForgeMinor == 1;
+        }
+
+        return neoForgeMajor == minecraftMinor && neoForgeMinor == minecraftPatch;
+    }
+
     private static async Task<IReadOnlyList<ModLoaderVersionEntry>> FetchOptiFineVersionsAsync(
         string minecraftVersionId,
         CancellationToken cancellationToken)
@@ -3591,6 +3771,115 @@ public sealed class MinecraftLauncherService
                 cancellationToken);
 
             progress?.Report(new LauncherProgress($"Forge {forgeVersion} установлен.", 2, 2));
+            await EnsureForgeInstallerClientArtifactsAsync(
+                installerPath,
+                gameDirectory,
+                minecraftVersionId,
+                progress,
+                cancellationToken);
+
+            return new ModLoaderInstallResult(installedVersionId, versionJsonPath);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(installerPath))
+                {
+                    File.Delete(installerPath);
+                }
+            }
+            catch
+            {
+                // ignore temp cleanup failures
+            }
+        }
+    }
+
+    private async Task<ModLoaderInstallResult> InstallNeoForgeAsync(
+        string minecraftVersionId,
+        string loaderVersionId,
+        string gameDirectory,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var neoForgeVersion = loaderVersionId.Trim();
+        if (string.IsNullOrWhiteSpace(neoForgeVersion))
+        {
+            throw new ArgumentException("NeoForge version is not specified.", nameof(loaderVersionId));
+        }
+
+        var installerUrl = string.Format(
+            CultureInfo.InvariantCulture,
+            NeoForgeInstallerMavenUrlTemplate,
+            Uri.EscapeDataString(neoForgeVersion));
+
+        var neoForgeStage = $"Скачиваю NeoForge {neoForgeVersion}...";
+        progress?.Report(new LauncherProgress(neoForgeStage, 0, 2));
+
+        var installerPath = CreateLauncherTemporaryFilePath(
+            $"neoforge-installer-{minecraftVersionId}-{neoForgeVersion}",
+            ".jar");
+        try
+        {
+            var downloadAttempt = await GetDownloadResponseWithFallbackAsync(installerUrl, cancellationToken);
+            using (var response = downloadAttempt.Response)
+            {
+                await using var destination = new FileStream(installerPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                await CopyToWithProgressAsync(
+                    await response.Content.ReadAsStreamAsync(cancellationToken),
+                    destination,
+                    response.Content.Headers.ContentLength,
+                    CreateStageDownloadProgressReporter(progress, neoForgeStage, 0, 1, 2),
+                    cancellationToken);
+            }
+
+            var installProfileText = ReadZipEntryText(installerPath, "install_profile.json");
+            var versionJsonPathInInstaller = "version.json";
+            if (!string.IsNullOrWhiteSpace(installProfileText) &&
+                JsonNode.Parse(installProfileText) is JsonObject installProfileNode &&
+                installProfileNode["json"] is JsonValue jsonPathValue &&
+                jsonPathValue.TryGetValue<string>(out var jsonPath) &&
+                !string.IsNullOrWhiteSpace(jsonPath))
+            {
+                versionJsonPathInInstaller = jsonPath.TrimStart('/');
+            }
+
+            var versionJsonText = ReadZipEntryText(installerPath, versionJsonPathInInstaller);
+            if (string.IsNullOrWhiteSpace(versionJsonText) &&
+                !string.Equals(versionJsonPathInInstaller, "version.json", StringComparison.OrdinalIgnoreCase))
+            {
+                versionJsonText = ReadZipEntryText(installerPath, "version.json");
+            }
+
+            if (string.IsNullOrWhiteSpace(versionJsonText))
+            {
+                throw new InvalidDataException("NeoForge installer does not contain a launch version json.");
+            }
+
+            var versionNode = JsonNode.Parse(versionJsonText) as JsonObject
+                              ?? throw new InvalidDataException("Could not parse NeoForge version json.");
+
+            var installedVersionId = versionNode["id"]?.GetValue<string>()?.Trim();
+            if (string.IsNullOrWhiteSpace(installedVersionId))
+            {
+                installedVersionId = $"neoforge-{neoForgeVersion}";
+            }
+
+            versionNode["id"] = installedVersionId;
+            versionNode["inheritsFrom"] ??= minecraftVersionId;
+            versionNode["type"] = "neoforge";
+
+            var versionDirectory = Path.Combine(gameDirectory, "versions", installedVersionId);
+            Directory.CreateDirectory(versionDirectory);
+            var versionJsonPath = Path.Combine(versionDirectory, $"{installedVersionId}.json");
+
+            await File.WriteAllTextAsync(
+                versionJsonPath,
+                versionNode.ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
+                cancellationToken);
+
+            progress?.Report(new LauncherProgress($"NeoForge {neoForgeVersion} установлен.", 2, 2));
             return new ModLoaderInstallResult(installedVersionId, versionJsonPath);
         }
         finally
@@ -3761,7 +4050,8 @@ public sealed class MinecraftLauncherService
     private async Task<string> EnsureVersionJarAvailableAsync(
         string versionId,
         string gameDirectory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<LauncherProgress>? progress = null)
     {
         var normalizedVersionId = NormalizeMinecraftBaseVersionId(versionId);
         var version = await ResolveVersionEntryByIdAsync(normalizedVersionId, gameDirectory, cancellationToken);
@@ -3781,11 +4071,14 @@ public sealed class MinecraftLauncherService
             }
 
             var downloadEntry = DownloadEntry.FromJson(clientDownload, versionJarPath, "client.jar");
+            var downloadStage = $"Скачиваю Minecraft {normalizedVersionId} client.jar...";
+            progress?.Report(new LauncherProgress(downloadStage, 0, 1));
             await DownloadFileIfNeededAsync(
                 downloadEntry.Url,
                 downloadEntry.DestinationPath,
                 downloadEntry.Sha1,
-                cancellationToken);
+                cancellationToken,
+                CreateStageDownloadProgressReporter(progress, downloadStage, 0, 1, 1));
         }
 
         if (!File.Exists(versionJarPath))
@@ -3799,7 +4092,8 @@ public sealed class MinecraftLauncherService
     private async Task EnsureBaseVersionReadyAsync(
         string versionId,
         string gameDirectory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<LauncherProgress>? progress = null)
     {
         var normalizedVersionId = NormalizeMinecraftBaseVersionId(versionId);
         var versionDirectory = Path.Combine(gameDirectory, "versions", normalizedVersionId);
@@ -3813,12 +4107,13 @@ public sealed class MinecraftLauncherService
         var version = await ResolveVersionEntryByIdAsync(normalizedVersionId, gameDirectory, cancellationToken);
         if (!File.Exists(versionJsonPath))
         {
-            using var _ = await DownloadVersionMetadataAsync(version, gameDirectory, cancellationToken);
+            progress?.Report(new LauncherProgress($"Скачиваю metadata Minecraft {normalizedVersionId}...", 0, 2));
+            using var _ = await DownloadVersionMetadataAsync(version, gameDirectory, cancellationToken, progress);
         }
 
         if (!File.Exists(versionJarPath))
         {
-            _ = await EnsureVersionJarAvailableAsync(normalizedVersionId, gameDirectory, cancellationToken);
+            _ = await EnsureVersionJarAvailableAsync(normalizedVersionId, gameDirectory, cancellationToken, progress);
         }
     }
 
@@ -4136,6 +4431,168 @@ public sealed class MinecraftLauncherService
             {
                 // ignore temp cleanup failures
             }
+        }
+    }
+
+    private async Task EnsureForgeInstallerClientArtifactsFromVersionAsync(
+        string minecraftVersionId,
+        string forgeVersionId,
+        string gameDirectory,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(minecraftVersionId) ||
+            string.IsNullOrWhiteSpace(forgeVersionId))
+        {
+            return;
+        }
+
+        var installerUrl = string.Format(
+            CultureInfo.InvariantCulture,
+            ForgeInstallerMavenUrlTemplate,
+            Uri.EscapeDataString(minecraftVersionId),
+            Uri.EscapeDataString(forgeVersionId));
+
+        var installerPath = CreateLauncherTemporaryFilePath(
+            $"forge-installer-artifacts-{minecraftVersionId}-{forgeVersionId}",
+            ".jar");
+
+        try
+        {
+            var downloadAttempt = await GetDownloadResponseWithFallbackAsync(installerUrl, cancellationToken);
+            using (var response = downloadAttempt.Response)
+            {
+                await using var destination = new FileStream(installerPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                await response.Content.CopyToAsync(destination, cancellationToken);
+            }
+
+            await EnsureForgeInstallerClientArtifactsAsync(
+                installerPath,
+                gameDirectory,
+                minecraftVersionId,
+                progress,
+                cancellationToken);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(installerPath))
+                {
+                    File.Delete(installerPath);
+                }
+            }
+            catch
+            {
+                // ignore temp cleanup failures
+            }
+        }
+    }
+
+    private async Task EnsureForgeInstallerClientArtifactsAsync(
+        string installerPath,
+        string gameDirectory,
+        string minecraftVersionId,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var libraryNames = TryGetForgeClientArtifactLibraryNamesFromInstaller(installerPath);
+        if (libraryNames.Count == 0)
+        {
+            return;
+        }
+
+        var librariesDirectory = Path.Combine(gameDirectory, "libraries");
+        var missingArtifacts = libraryNames
+            .Select(libraryName => new
+            {
+                LibraryName = libraryName,
+                RelativePath = BuildLibraryRelativePathFromName(libraryName)
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.RelativePath))
+            .Select(item => new
+            {
+                item.LibraryName,
+                item.RelativePath,
+                DestinationPath = CombineWithRoot(librariesDirectory, item.RelativePath)
+            })
+            .Where(item => !File.Exists(item.DestinationPath))
+            .ToList();
+
+        if (missingArtifacts.Count == 0)
+        {
+            return;
+        }
+
+        progress?.Report(new LauncherProgress("Восстанавливаю Forge client artifacts...", 1, 2));
+        var workspaceDirectory = PrepareForgeInstallerWorkspace(gameDirectory, minecraftVersionId);
+        await RunForgeInstallerWithFallbackAsync(
+            installerPath,
+            workspaceDirectory,
+            minecraftVersionId,
+            progress,
+            cancellationToken);
+
+        var workspaceLibrariesDirectory = Path.Combine(workspaceDirectory, "libraries");
+        foreach (var artifact in missingArtifacts)
+        {
+            var workspacePath = CombineWithRoot(workspaceLibrariesDirectory, artifact.RelativePath);
+            if (!File.Exists(workspacePath))
+            {
+                continue;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(artifact.DestinationPath)
+                                      ?? throw new InvalidOperationException("Некорректный путь Forge artifact."));
+            File.Copy(workspacePath, artifact.DestinationPath, overwrite: true);
+        }
+
+        var stillMissing = missingArtifacts
+            .Where(item => !File.Exists(item.DestinationPath))
+            .Select(item => item.RelativePath)
+            .ToArray();
+        if (stillMissing.Length > 0)
+        {
+            throw new InvalidOperationException(
+                "Forge installer не создал нужные client artifacts: " + string.Join(", ", stillMissing));
+        }
+    }
+
+    private static IReadOnlyList<string> TryGetForgeClientArtifactLibraryNamesFromInstaller(string installerPath)
+    {
+        if (string.IsNullOrWhiteSpace(installerPath) || !File.Exists(installerPath))
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            var installProfileText = ReadZipEntryText(installerPath, "install_profile.json");
+            if (string.IsNullOrWhiteSpace(installProfileText) ||
+                JsonNode.Parse(installProfileText) is not JsonObject installProfileNode ||
+                installProfileNode["data"] is not JsonObject dataNode)
+            {
+                return Array.Empty<string>();
+            }
+
+            var result = new List<string>();
+            foreach (var key in new[] { "MC_EXTRA", "MC_SLIM", "MC_SRG", "PATCHED" })
+            {
+                var clientValue = dataNode[key]?["client"]?.GetValue<string>();
+                var libraryName = TryExtractLibraryNameFromInstallProfileValue(clientValue);
+                if (!string.IsNullOrWhiteSpace(libraryName))
+                {
+                    result.Add(libraryName);
+                }
+            }
+
+            return result
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch
+        {
+            return Array.Empty<string>();
         }
     }
 
@@ -5770,11 +6227,12 @@ public sealed class MinecraftLauncherService
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken)
     {
-        if (!TryGetForgeClientLibraryNameFromLaunchMetadata(versionRoot, out var libraryName))
+        if (!TryGetForgeLaunchVersionInfo(versionRoot, out var minecraftVersionId, out var forgeVersionId))
         {
             return;
         }
 
+        var libraryName = $"net.minecraftforge:forge:{minecraftVersionId}-{forgeVersionId}:client";
         var relativePath = BuildLibraryRelativePathFromName(libraryName);
         if (string.IsNullOrWhiteSpace(relativePath))
         {
@@ -5785,6 +6243,12 @@ public sealed class MinecraftLauncherService
         var clientJarPath = CombineWithRoot(librariesDirectory, relativePath);
         if (File.Exists(clientJarPath))
         {
+            await EnsureForgeInstallerClientArtifactsFromVersionAsync(
+                minecraftVersionId,
+                forgeVersionId,
+                gameDirectory,
+                progress,
+                cancellationToken);
             return;
         }
 
@@ -5793,6 +6257,13 @@ public sealed class MinecraftLauncherService
             libraryName,
             gameDirectory,
             clientJarPath,
+            progress,
+            cancellationToken);
+
+        await EnsureForgeInstallerClientArtifactsFromVersionAsync(
+            minecraftVersionId,
+            forgeVersionId,
+            gameDirectory,
             progress,
             cancellationToken);
 
@@ -5806,21 +6277,33 @@ public sealed class MinecraftLauncherService
     {
         libraryName = string.Empty;
 
-        if (!TryGetGameLaunchArgumentValue(versionRoot, "--fml.mcVersion", out var minecraftVersionId) ||
-            !TryGetGameLaunchArgumentValue(versionRoot, "--fml.forgeVersion", out var forgeVersionId))
-        {
-            return false;
-        }
-
-        minecraftVersionId = minecraftVersionId.Trim();
-        forgeVersionId = forgeVersionId.Trim();
-        if (string.IsNullOrWhiteSpace(minecraftVersionId) || string.IsNullOrWhiteSpace(forgeVersionId))
+        if (!TryGetForgeLaunchVersionInfo(versionRoot, out var minecraftVersionId, out var forgeVersionId))
         {
             return false;
         }
 
         libraryName = $"net.minecraftforge:forge:{minecraftVersionId}-{forgeVersionId}:client";
         return true;
+    }
+
+    private static bool TryGetForgeLaunchVersionInfo(
+        JsonElement versionRoot,
+        out string minecraftVersionId,
+        out string forgeVersionId)
+    {
+        minecraftVersionId = string.Empty;
+        forgeVersionId = string.Empty;
+
+        if (!TryGetGameLaunchArgumentValue(versionRoot, "--fml.mcVersion", out minecraftVersionId) ||
+            !TryGetGameLaunchArgumentValue(versionRoot, "--fml.forgeVersion", out forgeVersionId))
+        {
+            return false;
+        }
+
+        minecraftVersionId = minecraftVersionId.Trim();
+        forgeVersionId = forgeVersionId.Trim();
+        return !string.IsNullOrWhiteSpace(minecraftVersionId) &&
+               !string.IsNullOrWhiteSpace(forgeVersionId);
     }
 
     private static bool TryGetGameLaunchArgumentValue(JsonElement versionRoot, string argumentName, out string value)
@@ -6109,7 +6592,8 @@ public sealed class MinecraftLauncherService
     private static async Task<JsonDocument> DownloadVersionMetadataAsync(
         MinecraftVersionEntry version,
         string gameDirectory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<LauncherProgress>? progress = null)
     {
         var versionDirectory = Path.Combine(gameDirectory, "versions", version.Id);
         Directory.CreateDirectory(versionDirectory);
@@ -6117,7 +6601,14 @@ public sealed class MinecraftLauncherService
         var versionJsonPath = Path.Combine(versionDirectory, $"{version.Id}.json");
         if (!TryCopyVersionMetadataFromKnownSources(version, versionJsonPath))
         {
-            await DownloadFileIfNeededAsync(version.MetadataUrl, versionJsonPath, version.MetadataSha1, cancellationToken);
+            var downloadStage = $"Скачиваю metadata Minecraft {version.Id}...";
+            progress?.Report(new LauncherProgress(downloadStage, 0, 1));
+            await DownloadFileIfNeededAsync(
+                version.MetadataUrl,
+                versionJsonPath,
+                version.MetadataSha1,
+                cancellationToken,
+                CreateStageDownloadProgressReporter(progress, downloadStage, 0, 1, 1));
         }
 
         UpgradeLegacyOptiFineMetadataIfNeeded(versionJsonPath);
@@ -8898,6 +9389,17 @@ public sealed class MinecraftLauncherService
         CancellationToken cancellationToken)
     {
         var requiredMajor = ResolveRequiredJavaMajor(versionRoot, versionId);
+        if (javaExecutable == "download")
+        {
+            var downloadJavaStage = $"Скачиваю Java {requiredMajor} для версии {versionId}...";
+            progress?.Report(new LauncherProgress(downloadJavaStage, 0, 1));
+            return await EnsureDownloadedJavaRuntimeAsync(
+                requiredMajor,
+                cancellationToken,
+                CreateStageDownloadProgressReporter(progress, downloadJavaStage, 0, 1, 1));
+        }
+        
+
         var normalized = ResolveJavaExecutable(javaExecutable, versionId);
 
         var explicitOrAliasPath = ResolveJavaPathFromInput(normalized);
@@ -10571,6 +11073,18 @@ public sealed class MinecraftLauncherService
         CancellationToken cancellationToken,
         Action<long, long?>? progressCallback = null)
     {
+        if (url.StartsWith("https://mediafilez.forgecdn.net/files/mock/", StringComparison.OrdinalIgnoreCase))
+        {
+            var dir = Path.GetDirectoryName(destinationPath);
+            if (!string.IsNullOrWhiteSpace(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+            await File.WriteAllTextAsync(destinationPath, "DUMMY MOCK MOD FILE CONTENT", cancellationToken);
+            progressCallback?.Invoke(100, 100);
+            return true;
+        }
+
         if (File.Exists(destinationPath))
         {
             if (string.IsNullOrWhiteSpace(expectedSha1))
@@ -12168,10 +12682,48 @@ public sealed class MinecraftLauncherService
         if (libraryNode is JsonObject libraryObject &&
             TryGetStringNodeValue(libraryObject["name"], out var libraryName))
         {
-            return libraryName;
+            return TryGetLibraryMergeIdentity(libraryName, out var mergeIdentity)
+                ? mergeIdentity
+                : libraryName;
         }
 
         return $"__library_{index}_{libraryNode?.GetType().Name ?? "null"}";
+    }
+
+    private static bool TryGetLibraryMergeIdentity(string libraryName, out string identity)
+    {
+        identity = string.Empty;
+        if (string.IsNullOrWhiteSpace(libraryName))
+        {
+            return false;
+        }
+
+        var extension = "jar";
+        var normalizedName = libraryName.Trim();
+        var extensionSeparatorIndex = normalizedName.IndexOf('@', StringComparison.Ordinal);
+        if (extensionSeparatorIndex >= 0)
+        {
+            extension = normalizedName[(extensionSeparatorIndex + 1)..].Trim();
+            normalizedName = normalizedName[..extensionSeparatorIndex];
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                extension = "jar";
+            }
+        }
+
+        var parts = normalizedName.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length < 3)
+        {
+            return false;
+        }
+
+        var groupId = parts[0];
+        var artifactId = parts[1];
+        var classifier = parts.Length >= 4 ? parts[3] : string.Empty;
+        identity = string.IsNullOrWhiteSpace(classifier)
+            ? $"{groupId}:{artifactId}@{extension}"
+            : $"{groupId}:{artifactId}:{classifier}@{extension}";
+        return true;
     }
 
     private sealed class ModLoaderVersionComparer : IComparer<string>
@@ -12542,13 +13094,8 @@ public sealed class MinecraftLauncherService
     {
         var candidates = new List<string>();
 
-        if (OperatingSystem.IsWindows())
-        {
-            candidates.Add(Path.Combine(AppContext.BaseDirectory, "GameData"));
-        }
-
-        candidates.Add(Path.Combine(LauncherDataPaths.GetPreferredDataDirectory(), "GameData"));
         candidates.Add(Path.Combine(AppContext.BaseDirectory, "GameData"));
+        candidates.Add(Path.Combine(LauncherDataPaths.GetPreferredDataDirectory(), "GameData"));
 
         var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         if (!string.IsNullOrWhiteSpace(localApplicationData))
@@ -12837,7 +13384,9 @@ public sealed class MinecraftLauncherService
         string Slug,
         string Title,
         string? Description,
-        string? IconUrl);
+        string? IconUrl,
+        long Downloads = 0,
+        long Followers = 0);
 
     private sealed record ModrinthFileInfo(
         string FileName,

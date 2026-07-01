@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>vesper-setup.ico</ApplicationIcon>
+    <VelopackSetup>..\..\_build_verify\velopack\1.0.43-beta.1\Releases\Vesper.Launcher-win-Setup.exe</VelopackSetup>
+    <AssemblyName>VesperLauncherSetup</AssemblyName>
+    <RootNamespace>VesperLauncherSetup</RootNamespace>
+    <Version>1.0.41</Version>
+    <AssemblyVersion>1.0.41.0</AssemblyVersion>
+    <FileVersion>1.0.41.0</FileVersion>
+    <Company>Vesper Launcher</Company>
+    <Product>Vesper Launcher Setup</Product>
+    <Copyright>Copyright (c) 2026 Vesper Launcher</Copyright>
+    <Description>Installer for Vesper Launcher</Description>
+    <Title>Vesper Launcher Setup</Title>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(VelopackSetup)" LogicalName="velopack-setup.exe" Condition="Exists('$(VelopackSetup)')" />
+    <EmbeddedResource Include="..\..\VesperLauncherApp\Assets\vesper-logo.png" LogicalName="vesper-logo.png" />
+    <EmbeddedResource Include="..\..\VesperLauncherApp\Assets\vesper-logo.jpg" LogicalName="vesper-logo.jpg" Condition="Exists('..\..\VesperLauncherApp\Assets\vesper-logo.jpg')" />
+    <EmbeddedResource Include="..\..\VesperLauncherApp\Assets\vesper-launcher-wordmark.png" LogicalName="vesper-launcher-wordmark.png" />
+    <EmbeddedResource Include="..\..\LICENSE.txt" LogicalName="installer-license.txt" />
+  </ItemGroup>
+</Project>
+

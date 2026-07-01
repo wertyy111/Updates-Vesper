@@ -449,7 +449,7 @@ $buildTempDirectory = Join-Path $releaseRoot 'temp'
 $buildIntermediateDirectory = Join-Path $releaseRoot 'obj'
 $setupWrapperPublishDirectory = Join-Path $releaseRoot 'setup-wrapper-publish'
 $setupWrapperIntermediateDirectory = Join-Path $releaseRoot 'setup-wrapper-obj'
-$iconPath = Resolve-NormalizedPath (Join-Path $repoRoot 'VesperLauncher/Assets/vesper-app.ico')
+$iconPath = Resolve-NormalizedPath (Join-Path $repoRoot 'VesperLauncherApp/Assets/vesper-app.ico')
 
 if ($SkipPreviousDownload -and (Test-Path -LiteralPath $releasesDirectory)) {
     $resolvedReleasesDirectory = Resolve-NormalizedPath $releasesDirectory
