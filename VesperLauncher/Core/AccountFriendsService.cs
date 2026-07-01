@@ -929,9 +929,25 @@ internal sealed class AccountFriendsService
         if (!string.IsNullOrWhiteSpace(_syncConfig.AuthorizationHeaderName) &&
             !string.IsNullOrWhiteSpace(_syncConfig.AuthorizationHeaderValue))
         {
+            var headerValue = _syncConfig.AuthorizationHeaderValue;
+            if (headerValue.StartsWith("Bearer B64:", StringComparison.Ordinal))
+            {
+                var base64Part = headerValue.Substring("Bearer B64:".Length).Trim();
+                try
+                {
+                    var decodedBytes = Convert.FromBase64String(base64Part);
+                    var decodedValue = System.Text.Encoding.UTF8.GetString(decodedBytes);
+                    headerValue = "Bearer " + decodedValue;
+                }
+                catch
+                {
+                    // Fallback to raw value
+                }
+            }
+
             request.Headers.TryAddWithoutValidation(
                 _syncConfig.AuthorizationHeaderName,
-                _syncConfig.AuthorizationHeaderValue);
+                headerValue);
         }
     }
 
