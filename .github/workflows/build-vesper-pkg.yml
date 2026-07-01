@@ -1,0 +1,94 @@
+name: Build Vesper PKG
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag with macOS app tar.gz assets"
+        required: true
+        default: "dmg-build-1.0.60-beta.1"
+      version:
+        description: "Vesper Launcher version"
+        required: true
+        default: "1.0.60-beta.1"
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  build-pkg:
+    name: Build PKG (${{ matrix.rid }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid:
+          - osx-x64
+          - osx-arm64
+
+    steps:
+      - name: Download app bundle archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work
+          gh release download "${{ inputs.release_tag }}" \
+            --repo "${{ github.repository }}" \
+            --pattern "VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}-app.tar.gz" \
+            --dir work
+
+      - name: Build PKG installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="work/VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}-app.tar.gz"
+          extract_dir="work/extracted-${{ matrix.rid }}"
+          root_dir="work/pkg-root-${{ matrix.rid }}"
+          scripts_dir="work/pkg-scripts-${{ matrix.rid }}"
+          component_pkg="work/VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}-component.pkg"
+          final_pkg="VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}.pkg"
+
+          mkdir -p "$extract_dir" "$root_dir/Applications" "$scripts_dir"
+          tar -xzf "$archive" -C "$extract_dir"
+          cp -R "$extract_dir/Vesper Launcher.app" "$root_dir/Applications/"
+          chmod +x "$root_dir/Applications/Vesper Launcher.app/Contents/MacOS/VesperLauncher"
+
+          cat > "$scripts_dir/postinstall" <<'SCRIPT'
+          #!/bin/bash
+          chmod +x "/Applications/Vesper Launcher.app/Contents/MacOS/VesperLauncher" 2>/dev/null || true
+          exit 0
+          SCRIPT
+          chmod +x "$scripts_dir/postinstall"
+
+          pkgbuild \
+            --root "$root_dir" \
+            --scripts "$scripts_dir" \
+            --identifier "site.vesper.launcher" \
+            --version "${{ inputs.version }}" \
+            --install-location "/" \
+            "$component_pkg"
+
+          productbuild \
+            --package "$component_pkg" \
+            --identifier "site.vesper.launcher.installer" \
+            --version "${{ inputs.version }}" \
+            "$final_pkg"
+
+      - name: Upload PKG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}-pkg
+          path: VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}.pkg
+          if-no-files-found: error
+
+      - name: Upload PKG to release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "${{ inputs.release_tag }}" \
+            --repo "${{ github.repository }}" \
+            --clobber \
+            "VesperLauncher-${{ inputs.version }}-${{ matrix.rid }}.pkg"
